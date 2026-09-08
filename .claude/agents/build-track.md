@@ -42,7 +42,7 @@ FIRST: read `orchestration/work-packages/<TRACK>.md`. Then read resource `obc://
 
 LOOP: gather context via `mcp__obc__*` and SQLite — never load the 27k-node graph into your context; query it. Build in this worktree. Register an H10 mutation for every ratio gate. Run `python3 harden/checks/check35_controls.py --db emitters/obc-mod.sqlite` until every entry reads `ok`. Run `bash ci/regenerate.sh && touch .regen.stamp`. Run `python3 ci/run_gates.py`. Repeat until your declared gates pass.
 
-TERMINATION: the Stop hook runs check35 and the board and refuses to let you finish otherwise. If it blocks you, read the reason on stderr; it is specific.
+TERMINATION: the Stop hook runs check40, then check35, then the board. Do not read it as a wall — it honours `stop_hook_active`, so it blocks once and permits you on retry. That is deliberate, so a bad gate cannot wedge a session, and it means **finishing is not evidence that your board was green**. Read the reason on stderr; it is specific. Ending with it unresolved means you ended with a red board, and your audit addendum must say so.
 
 ESCALATE — do not assume — if the track touches DEC1 (assist vs judge), DEC2 (external exposure), DEC3 (hub token cap), or DEC4 (building-official availability). Ask, and stop.
 

@@ -1,0 +1,83 @@
+FRAGMENT for .claude/hooks/guard-commit-and-corpus.sh — not a replacement.
+PROTOCOL step 4a PROMOTE: a human applies the two lines below and commits.
+.claude/hooks/* is protected, so no executor may write it directly (R13).
+
+WHY
+---
+Two defects, both observed live on 2026-09-08 while orchestrating a wave.
+
+1. A LIVE SUBAGENT BLOCKS EVERY COMMIT ON THE MAIN CHECKOUT.
+   The `find "$ROOT" -newer "$STAMP"` at line 26 excludes .git, __pycache__,
+   the stamp itself, gate-board.json and two out/ trees. It does NOT exclude
+   .claude/worktrees/, where `isolation: worktree` puts a full checkout per
+   subagent. Any file a running agent writes is newer than the stamp, so the
+   orchestrator is refused:
+
+     BLOCKED: edited after the last regenerate:
+       /home/user/obc-interactive/.claude/worktrees/agent-<id>/orchestration/tracks.yaml
+
+   That file is not in the commit, is on a different branch, and is gitignored
+   (.gitignore:4). The guard is correct about its own rule and wrong about the
+   scope of it. The consequence is structural rather than cosmetic: the wave
+   model this project just adopted runs several agents concurrently and gives
+   the orchestrator a review gate at each boundary — and under this hook the
+   orchestrator cannot commit anything at all while a wave is in flight.
+
+2. RUNNING GATE E1 DISARMS COMMITTING.
+   ci/test_hooks.sh:128 ends with `rm -f .regen.stamp`, and must — line 39
+   tests that this hook blocks when the stamp is absent, so the suite has to be
+   able to remove it. So every local verification sweep leaves the tree in the
+   state this hook refuses. Recorded in AUDIT-rev14.md; the fix belongs here.
+
+Neither guard is wrong in isolation. They are wrong about each other.
+
+THE PATCH
+---------
+Line 26-27, add one exclusion for subagent worktrees:
+
+-  NEWER=$(find "$ROOT" -type f -newer "$STAMP" ! -path '*/.git/*' ! -path '*/__pycache__/*' ! -name '.regen.stamp' \
+-          ! -name 'gate-board.json' ! -path '*/verify/*/out/*' ! -path '*/pipeline/emitters/out/*' 2>/dev/null | head -3 | tr '\n' ' ')
++  # .claude/worktrees/ holds a full checkout per subagent (isolation: worktree)
++  # and is gitignored. A running agent's writes are newer than the stamp but are
++  # on another branch and never in this commit, so without this exclusion any
++  # live wave refuses every commit on the main checkout.
++  NEWER=$(find "$ROOT" -type f -newer "$STAMP" ! -path '*/.git/*' ! -path '*/__pycache__/*' ! -name '.regen.stamp' \
++          ! -path '*/.claude/worktrees/*' \
++          ! -name 'gate-board.json' ! -path '*/verify/*/out/*' ! -path '*/pipeline/emitters/out/*' 2>/dev/null | head -3 | tr '\n' ' ')
+
+DEFECT 2 IS NOT PATCHED HERE, DELIBERATELY
+-------------------------------------------
+Restoring the stamp inside test_hooks.sh would make E1 leave state behind it did
+not find, and having this hook distinguish "no stamp" from "stamp older than a
+generated file" is a behaviour change to a guard, not a scope fix. Both belong
+with the no-data path already proposed for this hook (AUDIT-rev14 WHAT BROKE 3),
+where a data-less clone can commit when no generated artifact is in the diff.
+Proposed together, applied together, with a control each.
+
+NEW E1 CASES OWED WHEN THIS IS PROMOTED (ci/test_hooks.sh is protected too)
+  - a file under .claude/worktrees/ newer than the stamp -> commit PERMITTED
+  - a file in the repo proper newer than the stamp       -> commit BLOCKED
+The second is the control: without it the exclusion could be widened to
+everything and the suite would still pass.
+
+OBSERVED TWICE, MINUTES APART, AND THE RACE IS UNWINNABLE
+---------------------------------------------------------
+2026-09-08T18:49  BLOCKED on .claude/worktrees/agent-<A>/orchestration/tracks.yaml
+2026-09-08T18:51  stamp refreshed at 18:51:30, staged, commit attempted
+                  BLOCKED on .claude/worktrees/agent-<A>/tools/fixtures/.gitignore
+
+The second attempt is the important one. `touch .regen.stamp` immediately before
+`git commit` makes the stamp newer than every file that exists at that instant -
+and it still failed, because a live agent wrote a new file in the gap. There is
+no ordering of touch-and-commit that wins against an agent that is still working.
+
+So this is not "an inconvenience the orchestrator can time around". While any
+subagent is running, commits on the main checkout are refused, full stop. The
+only remedies without this patch are to serialise every wave down to one agent,
+or to wait for the whole wave before committing anything - both of which give up
+the property the wave model exists to provide.
+
+Note also which file blocked the second attempt: `tools/fixtures/.gitignore`, a
+file the agent created seconds earlier inside a gitignored worktree. Nothing
+about it is related to whether this repository's generated documentation is
+stale, which is the only thing this check is for.

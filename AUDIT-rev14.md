@@ -88,3 +88,34 @@ So beyond about two waves, this project is not rate-limited by executors at all.
 
 Unofficial derived work. Current to 2025-01-16 (through O. Reg. 5/25). Not the official Building Code Compendium.
 © King's Printer for Ontario, 2024. Reproduced with permission.
+
+---
+
+## Addendum — CI run 15, observed after this revision was committed
+
+Revision 13 stated that the `HAS_DATA` expression form could not be verified from here, and named its three possible outcomes. Run 15 (`9380139`, 2026-09-08T17:58Z) settles it on the intended one. Recorded here rather than by editing revision 13 (R10).
+
+| step | result | what it establishes |
+|---|---|---|
+| hooks are falsifiable (E1) | success | unchanged |
+| **DAG consistency** | **success** | ran above the fetch for the first time. It carries this revision's `agent_effort` validation, so R9-on-the-schedule is enforced on a hosted runner and not only locally. |
+| **fetch derived data** | **skipped** | `HAS_DATA: false`. **`secrets` in job-level `env`, read from a step-level `if:`, is valid and evaluates.** Not a parse error, not a truthy string. |
+| note that the fetch was skipped | success | the warning and the step summary fire, and the conclusion is unchanged — which was the point of making them advisory. |
+| fetch Crown-copyright sources | success | `fetch_sources.sh:8` exits 0 with a stated reason when `OBC_PDF_URL_V1` is unset, and the source gates SKIP through `needs:`. A green step that fetched nothing and says so. |
+| **regenerate** | **skipped** | revision 13's correction to the proposal. Without this guard the board stays skipped and DATA1 never runs, which was the entire point of the change. |
+| gate board | **failure at DATA1** | `E1 PASS, E2 PASS, DATA1 FAIL`. One red, named, with its 29 files listed. |
+| upload-artifact | **success** | `gate-board.json` exists, so `if-no-files-found: error` is no longer a second red step. |
+
+**E2 passed on a fresh runner.** First hosted confirmation of `5dc7d41`'s `git update-index --refresh` fix, which was written for a false red that appeared only on a runner's cold index and was invisible in the interactive session that produced it.
+
+Two of revision 13's three unverifiable items remain unverifiable: a run with the data secret actually set, and a fork pull request. The fork case is the no-false-green property — secrets are withheld, so the guard should skip the fetch and DATA1 should still fire red.
+
+**Gate E3 is not on this board.** `check42_produces.py` is staged, not promoted, so CI does not run it. It appears only after `dispatch.py --promote ENFORCE`.
+
+### Found while writing this addendum: running E1 disarms committing
+
+`ci/test_hooks.sh:128` ends with `rm -f .regen.stamp`, and it must — line 39 tests that `guard-commit` blocks a commit when the stamp is absent, so the suite has to be able to remove it. The consequence is that **every local verification sweep leaves the tree in the state the commit guard refuses**, and the deadlock recorded in WHAT BROKE 3 re-arms itself after each one rather than being a one-time condition of a fresh container.
+
+It also means the two guards interact in a way neither states: E1 proves the hooks can go red by removing the artefact the commit hook requires. Nothing is wrong with either in isolation. The durable fix belongs with the no-data path already proposed for `guard-commit` — have `test_hooks.sh` restore the stamp it found, or have the hook distinguish "no stamp" from "stamp older than a generated file". Both are protected edits, so both are proposals, not changes.
+
+*(This addendum was committed by the same authorised `guard-commit` bypass recorded in WHAT BROKE 3. The regenerate remains owed.)*

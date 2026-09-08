@@ -15,6 +15,11 @@ hooks:
         - type: command
           command: bash "$CLAUDE_PROJECT_DIR/.claude/hooks/gate-complete.sh"
           timeout: 1800
+  SubagentStop:
+    - hooks:
+        - type: command
+          command: bash "$CLAUDE_PROJECT_DIR/.claude/hooks/gate-complete.sh"
+          timeout: 1800
   PreToolUse:
     - matcher: Edit|Write|MultiEdit
       hooks:

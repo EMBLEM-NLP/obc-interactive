@@ -38,9 +38,11 @@ Three rules it inherits from the code around it
     python3 orchestration/gen_board.py --out -       # stdout
 """
 import argparse
+import glob
 import html
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 
@@ -61,6 +63,67 @@ STATUS_BLURB = {
     "done":        "complete and verified",
     "ERROR":       "the typed status contradicts the graph",
 }
+
+
+# --- gate definitions -------------------------------------------------------
+# A gate id in tracks.yaml is a promise; the ledger is where the promise is
+# written down. PROTOCOL step 1 says a track DECLARES its gates before writing
+# code, so a track that has not started legitimately has no ledger yet - but a
+# DONE track whose gates are defined nowhere is a different thing entirely, and
+# the board has to tell those two apart rather than printing bare tokens.
+GATE_LINE = re.compile(r"^- \[([x~ ])\] ([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*):\s*(.*)$")
+SKIP = ("CHECK:", "EXPECT:", "EVIDENCE:", "ABANDON:", "NOTE:", "OWNS:")
+
+
+def gate_defs():
+    """{id: {mark, text, ledger}} from every ledger, staged ones included."""
+    out = {}
+    files = sorted(glob.glob(os.path.join(PKG, "gates", "GATES-*.md")))
+    files += sorted(glob.glob(os.path.join(PKG, "proposed", "*", "GATES-*.md")))
+    for f in files:
+        rel = os.path.relpath(f, PKG)
+        lines = open(f).read().split("\n")
+        for i, ln in enumerate(lines):
+            m = GATE_LINE.match(ln)
+            if not m:
+                continue
+            mark, gid, text = m.group(1), m.group(2), m.group(3).strip()
+            # a wrapped description continues on indented lines until a
+            # CHECK:/EXPECT:/EVIDENCE: field or a blank line
+            for nxt in lines[i + 1:]:
+                t = nxt.strip()
+                if not t or t.startswith(SKIP) or GATE_LINE.match(nxt):
+                    break
+                if nxt.startswith((" ", "\t")):
+                    text += " " + t
+                else:
+                    break
+            out.setdefault(gid, {"mark": mark, "text": " ".join(text.split()), "ledger": rel})
+    return out
+
+
+def board_wiring():
+    """{gate id: [scripts]} from ci/checks.yaml - which gates the board runs."""
+    out = {}
+    try:
+        cy = yaml.safe_load(open(os.path.join(PKG, "ci", "checks.yaml")))
+    except (OSError, ValueError):
+        return out
+    for c in cy.get("checks") or []:
+        for g in str(c.get("gate", "")).split(","):
+            g = g.strip()
+            if g:
+                out.setdefault(g, []).append(c.get("script", ""))
+    return out
+
+
+def resolve(gid, defs):
+    """A gate may be written as itself or split into sub-gates: tracks.yaml says
+    DOC1, the ledger says DOC1-D1 and DOC1-D2. Either counts as defined."""
+    if gid in defs:
+        return [gid]
+    subs = sorted(k for k in defs if k.startswith(gid + "-"))
+    return subs
 
 
 def _mod(name):
@@ -130,7 +193,7 @@ h3{font-size:17px;font-weight:600}
 section{margin-top:52px}
 code{font-family:var(--mono);font-size:.87em;background:var(--sunk);
   padding:.1em .38em;border-radius:3px;color:var(--ink);word-break:break-word}
-a{color:var(--accent)}
+a{color:var(--accent)}\ncode.undef{color:var(--blocked);background:var(--blocked-bg);border:1px dashed currentColor}\ncode[title]{cursor:help}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* masthead */
@@ -320,6 +383,22 @@ def build(tracks_path=None):
     return P, T, derived, decisions, gated, promos, ready_promos, sha, when, A
 
 
+GDEFS = gate_defs()
+GWIRE = board_wiring()
+
+
+def gate_chip(gid, defs):
+    """A gate id with what it asserts on hover. An id nobody has defined says so
+    rather than looking like the others - that is the whole point."""
+    ids = resolve(gid, defs)
+    if not ids:
+        return (f'<code class=undef title="Declared in tracks.yaml. No ledger defines it yet '
+                f'- a ledger is written at PROTOCOL step 1, which this track has not reached.">'
+                f'{e(gid)}</code>')
+    txt = " / ".join(defs[i]["text"] for i in ids)
+    return f'<code title="{e(txt[:400])}">{e(gid)}</code>'
+
+
 def render(tracks_path=None):
     P, T, derived, decisions, gated, promos, ready_promos, sha, when, A = build(tracks_path)
 
@@ -365,7 +444,7 @@ def render(tracks_path=None):
             if gate and gate != "none":
                 rows.append(("human gate", f'<span class=gate-flag>{e(gate)}</span>'))
             if t.get("gates"):
-                rows.append(("gates", " ".join(mono(g) for g in t["gates"])))
+                rows.append(("gates", " ".join(gate_chip(g, GDEFS) for g in t["gates"])))
             if t.get("serialises_on"):
                 rows.append(("serialises on", " ".join(mono(x) for x in t["serialises_on"])))
             if st != "done":
@@ -380,6 +459,104 @@ def render(tracks_path=None):
             A(dl(rows))
             A("</article>")
         A("</div></section>")
+
+    # ---- gate glossary ----------------------------------------------------
+    ref = {}
+    for tid in T:
+        for g in (T[tid].get("gates") or []):
+            ref.setdefault(str(g), []).append(tid)
+
+    known = {g: resolve(g, GDEFS) for g in ref}
+    defined = {g: v for g, v in known.items() if v}
+    missing = {g: v for g, v in known.items() if not v}
+    # A gate of a DONE track with no ledger is a different animal from a gate of
+    # a track that has not started: step 1 has already happened for the former.
+    orphan = {g: ref[g] for g in missing if any(derived[t][0] == "done" for t in ref[g])}
+    pending = {g: ref[g] for g in missing if g not in orphan}
+    # Two tracks naming one gate is usually correct: the track that introduces a
+    # gate and a later track that must not regress it both declare it, and those
+    # two are on the same dependency chain. It is only ambiguous when the tracks
+    # are on DIFFERENT chains and no ledger says which meaning is meant -
+    # reporting all of them would bury the two that matter under eight that do not.
+    def ancestors(tid, seen=None):
+        seen = seen if seen is not None else set()
+        for dep in (T.get(tid, {}).get("depends_on") or []):
+            if dep not in seen:
+                seen.add(dep)
+                ancestors(dep, seen)
+        return seen
+
+    def related(a, b):
+        return a in ancestors(b) or b in ancestors(a)
+
+    shared, ambiguous = {}, {}
+    for g in ref:
+        ts = sorted(set(ref[g]))
+        if len(ts) < 2:
+            continue
+        unrelated = any(not related(a, b) for i, a in enumerate(ts) for b in ts[i + 1:])
+        if unrelated and not known[g]:
+            ambiguous[g] = ts
+        else:
+            shared[g] = ts
+
+    A(f"<section><h2>Gate glossary &mdash; what each id asserts</h2>")
+    A('<p class=sub style="margin:0 0 18px">Parsed from the gate ledgers, '
+      'staged ones included. A gate id in <code>tracks.yaml</code> is a promise; the ledger is '
+      'where the promise is written down, and PROTOCOL step 1 says a track declares its gates '
+      '<em>before</em> writing code. Hover any gate on a card above to read it there.</p>')
+    A(f'<div class=scroll><table><tr><th>gate</th><th>what it asserts</th>'
+      f'<th>ledger</th><th>mark</th><th>on the CI board</th></tr>')
+    for g in sorted(defined):
+        for i in defined[g]:
+            d = GDEFS[i]
+            mk = {"x": "met", "~": "malformed", " ": "not met"}.get(d["mark"], d["mark"])
+            wired = ", ".join(mono(os.path.basename(x)) for x in GWIRE.get(i.split("-")[0], [])) or "&mdash;"
+            A(f'<tr><td class=num>{mono(i)}</td><td>{e(d["text"])}</td>'
+              f'<td class=num>{mono(d["ledger"])}</td><td>{mk}</td><td>{wired}</td></tr>')
+    A("</table></div>")
+
+    if pending:
+        A(f'<h3 style="margin-top:30px;font-size:15px">Declared, not yet written ({len(pending)})</h3>')
+        A('<p class=sub style="margin:6px 0 12px">These belong to tracks that have not taken '
+          'PROTOCOL step 1. Their absence is the process working, not a defect &mdash; but until a '
+          'ledger exists, the id is a label and nothing has agreed what would satisfy it.</p>')
+        A('<div class=scroll><table><tr><th>gate</th><th>declared by</th></tr>')
+        for g in sorted(pending):
+            A(f'<tr><td class=num>{mono(g)}</td><td class=num>{", ".join(mono(x) for x in pending[g])}</td></tr>')
+        A("</table></div>")
+
+    if orphan:
+        A(f'<h3 style="margin-top:30px;font-size:15px">Claimed by a completed track, '
+          f'defined nowhere ({len(orphan)})</h3>')
+        A('<p class=sub style="margin:6px 0 12px">This one <em>is</em> a defect. These tracks are '
+          '<code>done</code>, so step 1 has already happened, and a gate that closed a track '
+          'without a written definition cannot be re-verified by anyone who receives the bag.</p>')
+        A('<div class=scroll><table><tr><th>gate</th><th>claimed by</th><th>on the CI board</th></tr>')
+        for g in sorted(orphan):
+            wired = ", ".join(mono(os.path.basename(x)) for x in GWIRE.get(g, [])) or "&mdash; nothing runs it"
+            A(f'<tr><td class=num>{mono(g)}</td><td class=num>{", ".join(mono(x) for x in orphan[g])}</td>'
+              f'<td>{wired}</td></tr>')
+        A("</table></div>")
+
+    if ambiguous:
+        A(f'<h3 style="margin-top:30px;font-size:15px">One id, two unrelated tracks, no definition '
+          f'({len(ambiguous)})</h3>')
+        A('<p class=sub style="margin:6px 0 12px">Gate ids are not namespaced per track. Two tracks '
+          'sharing one is normally correct &mdash; the track that introduces a gate and a later track '
+          'that must not regress it are on the same dependency chain. These are not: the tracks sit '
+          'on different chains <em>and</em> no ledger says which meaning is intended, so whichever '
+          'writes its ledger first takes the name.</p>')
+        A('<div class=scroll><table><tr><th>gate</th><th>claimed by</th></tr>')
+        for g in sorted(ambiguous):
+            A(f'<tr><td class=num>{mono(g)}</td><td class=num>{", ".join(mono(x) for x in ambiguous[g])}</td></tr>')
+        A("</table></div>")
+    if shared:
+        A(f'<p class=sub style="margin:18px 0 0;font-size:14px">{len(shared)} further gate ids are '
+          f'declared by more than one track on the same dependency chain &mdash; '
+          f'{", ".join(mono(g) for g in sorted(shared))} &mdash; which is the ordinary case and not '
+          f'a collision.</p>')
+    A("</section>")
 
     # ---- the promote checklist -------------------------------------------
     if promos:

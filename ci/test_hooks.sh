@@ -55,6 +55,29 @@ t "check33b with --all-articles"      0 $H/guard-commit-and-corpus.sh "$(bj 'pyt
 t "read the source PDF by path"       2 $H/guard-commit-and-corpus.sh "$(bj 'pdftotext /mnt/uploads/301880.pdf')"
 t "read the built PDF (allowed)"      0 $H/guard-commit-and-corpus.sh "$(bj 'pdfinfo pdf/301880_built_from_model.pdf')"
 
+echo "=== guard-machinery: absolute paths (the worktree escape) ==="
+# A subagent in a worktree ran `touch /abs/path/harden/checks/check35_controls.py`
+# and it SUCCEEDED, landing on the main checkout: the matcher only understood
+# repo-relative paths, so the hit list came back empty and the guard allowed it.
+t "absolute path to a check"          2 $H/guard-machinery.sh "$(bj 'touch /home/user/obc-interactive/harden/checks/check35_controls.py')"
+t "absolute path to a hook"           2 $H/guard-machinery.sh "$(bj 'sed -i s/a/b/ /home/user/obc-interactive/.claude/hooks/decision-guard.sh')"
+t "another checkout of the repo"      2 $H/guard-machinery.sh "$(bj 'cat > /home/user/obc-interactive/.claude/worktrees/agent-x/ci/checks.yaml')"
+t "absolute path, not machinery"      0 $H/guard-machinery.sh "$(bj 'touch /home/user/obc-interactive/README.md')"
+
+echo "=== guard-verify-readonly (wired only into verify-track) ==="
+t "verifier: the board"               0 $H/guard-verify-readonly.sh "$(bj 'python3 ci/run_gates.py')"
+t "verifier: schedule --check"        0 $H/guard-verify-readonly.sh "$(bj 'python3 orchestration/schedule.py --check')"
+t "verifier: regenerate"              0 $H/guard-verify-readonly.sh "$(bj 'bash ci/regenerate.sh')"
+t "verifier: read a check"            0 $H/guard-verify-readonly.sh "$(bj 'cat harden/checks/check35_controls.py')"
+t "verifier: sed -n is a read"        0 $H/guard-verify-readonly.sh "$(bj "sed -n '1,5p' ci/run_gates.py")"
+t "verifier: the probe that escaped"  2 $H/guard-verify-readonly.sh "$(bj 'echo hello > /tmp/verify_probe.txt')"
+t "verifier: sed -i"                  2 $H/guard-verify-readonly.sh "$(bj "sed -i 's/a/b/' harden/checks/check35_controls.py")"
+t "verifier: python3 -c"              2 $H/guard-verify-readonly.sh "$(bj 'python3 -c "print(1)"')"
+t "verifier: bash -c"                 2 $H/guard-verify-readonly.sh "$(bj "bash -c 'echo x'")"
+t "verifier: git checkout"            2 $H/guard-verify-readonly.sh "$(bj 'git checkout -- ci/run_gates.py')"
+t "verifier: an unknown command"      2 $H/guard-verify-readonly.sh "$(bj 'curl https://example.com')"
+t "verifier: garbage stdin"           2 $H/guard-verify-readonly.sh 'not json'
+
 echo "=== decision-guard: Edit shapes (the fail-open the Write cases missed) ==="
 t "Edit: flip FRULES to ready"        2 $H/decision-guard.sh "$(ej "$TY" "$FR_OLD" "$FR_NEW")"
 t "Edit: delete the DEC1 entry"       2 $H/decision-guard.sh "$(ej "$TY" "$DEC1" "")"

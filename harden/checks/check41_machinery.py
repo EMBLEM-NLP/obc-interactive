@@ -85,15 +85,48 @@ PROTECTED = [
 TRANSIENT = {"harden/checks/check_seeded_failure.py"}
 
 
+def _candidates(path):
+    """Every form of `path` that could name a protected file.
+
+    A guard that matches only repo-relative paths is not a guard. Found by the
+    first subagent ever dispatched: `touch /home/user/obc-interactive/harden/
+    checks/check35_controls.py` SUCCEEDED from inside a worktree and landed on
+    the main checkout, because the absolute form matched no pattern and
+    guard-machinery saw an empty hit list. The relative form of the identical
+    command was blocked.
+
+    Two forms are therefore tried. First the path relative to this package, for
+    the ordinary case. Then every suffix of it, so a path into ANOTHER checkout
+    of this repository - the main tree seen from a worktree, or a sibling
+    worktree - still matches. Suffix matching can over-match an unrelated file
+    that happens to live at `ci/checks.yaml`; refusing that write is the safe
+    direction.
+    """
+    p = path.replace(os.sep, "/")
+    out = []
+    if os.path.isabs(p):
+        try:
+            rel = os.path.relpath(p, _PKG).replace(os.sep, "/")
+            if not rel.startswith("../"):
+                out.append(rel)
+        except ValueError:
+            pass
+        parts = [x for x in p.split("/") if x]
+        out += ["/".join(parts[i:]) for i in range(len(parts))]
+    else:
+        while p.startswith("./"):
+            p = p[2:]
+        out.append(p)
+    return out
+
+
 def is_protected(rel):
     # NOT lstrip("./"): that strips any leading '.' or '/' CHARACTERS, so
     # ".claude/hooks/decision-guard.sh" became "claude/hooks/..." and silently
     # matched nothing. Every hook file - the most sensitive part of the
     # protected set - was excluded, and the count read 82 instead of 89.
-    rel = rel.replace(os.sep, "/")
-    while rel.startswith("./"):
-        rel = rel[2:]
-    return any(fnmatch.fnmatch(rel, p) for p in PROTECTED)
+    return any(fnmatch.fnmatch(c, pat) for c in _candidates(rel) for pat in PROTECTED)
+
 
 
 def git(args, cwd=_PKG):

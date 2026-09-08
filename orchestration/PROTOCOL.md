@@ -57,6 +57,13 @@ Fixes that invalidate vectors land together, then embed once. B1, B2, B3 togethe
 ### R9 — Documentation is measured, not typed.
 Every number in a report is produced by a check and cited to it. `check22_docs.py` enforces this for `README.md`; Track E7 extends it to `reports/*.md`, where two files still describe closed phases as future work.
 
+### R11 — A constraint on an executor is a mechanism or it is decoration.
+State every limit as something that refuses, and prove it refuses. A sentence in a spec, a field the harness may or may not honour, and a hook that fires are three different things, and only the last two are testable.
+*Wrote it:* the first subagents ever dispatched, 2026-09-08. `verify-track.md` said "You have no write tools" while granting plain `Bash`. Replacing that with a scoped `tools: Bash(...)` allowlist looked like a fix and was not: a probe ran `echo hello > /tmp/verify_probe.txt`, nowhere on the list, with no refusal — tools-field scoping is not enforced. The constraint only became real as `guard-verify-readonly.sh`, because a PreToolUse hook was *observed* firing inside a worktree.
+
+### R12 — A path guard must match every spelling of the path.
+*Wrote it:* the same dispatch. `guard-machinery` blocked `sed -i harden/checks/check35_controls.py` and allowed `touch /home/user/obc-interactive/harden/checks/check35_controls.py` — the same file, named absolutely. The matcher understood only repo-relative paths, so the hit list came back empty and the guard waved it through. A subagent in an isolated worktree wrote to the main checkout that way: git is fenced between worktrees, ordinary filesystem writes are not.
+
 ### R10 — Audit yourself at the same standard.
 Correction is recorded, not overwritten. Revision 1 of the audit was wrong about RO-Crate; it is preserved unedited with the correction beneath it. "One line each" was wrong by a factor of three; revision 3 says so in its first section. An audit that retouches its own past findings is a status report.
 

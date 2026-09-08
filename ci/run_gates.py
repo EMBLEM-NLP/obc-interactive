@@ -134,6 +134,38 @@ def run_one(c, pkg, base_env, sub, timeout):
     return status, r.returncode, last[:200], time.time() - t0
 
 
+def execute(cs, pkg, base_env, sub, timeout, board):
+    """Run checks, append rows to `board`, return (fails, ran).
+
+    Lifted out of main() so the data-independent gates can run BEFORE the DATA1
+    abort through this same code path. Duplicating the body would have left two
+    places to keep the KNOWN demotion and the skip accounting in step, which is
+    how one board starts reporting two different things.
+    """
+    fails = ran = 0
+    for c in cs:
+        status, rc, msg, secs = run_one(c, pkg, base_env, sub, timeout)
+        gates = c["gate"] if isinstance(c["gate"], list) else [c["gate"]]
+        for g in gates:
+            board.append(dict(gate=g, check=c["script"], status=status, exit=rc,
+                              result=msg, seconds=round(secs, 1), note=c.get("note")))
+        if status in ("FAIL", "MISSING"):
+            fails += 1
+        if status not in ("SKIP",):
+            ran += 1
+        gid = ",".join(gates)
+        known = c.get("known")
+        if status == "FAIL" and known:
+            status_shown = "KNOWN"
+            fails -= 1     # enumerated, not silent: counted separately below
+            for b in board:
+                if b["check"] == c["script"]: b["status"] = "KNOWN"; b["note"] = known
+        else:
+            status_shown = status
+        print(f"{gid:<12}{status_shown:<8}{secs:>6.1f}  {os.path.basename(c['script'])}: {msg[:56]}")
+    return fails, ran
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", default=os.path.join(HERE, "checks.yaml"))
@@ -175,6 +207,23 @@ def main():
     if a.fast:
         checks = [c for c in checks if not c.get("slow")]
 
+    board, fails, ran = [], 0, 0
+    print(f"{'gate':<12}{'status':<8}{'secs':>6}  check / result")
+    print("-" * 78)
+
+    # Gates that read NO data run before the DATA1 abort. Without this, a clone
+    # that never fetched the data reported one failure and zero gate results,
+    # when two gates - E1 (the hook suite) and E2 (machinery drift) - were
+    # available and would have passed. It is the same defect as the workflow
+    # ordering the hook test after the data fetch: the one signal that survives
+    # the outage was the signal being discarded.
+    early = [c for c in checks if c.get("no_data")]
+    checks = [c for c in checks if not c.get("no_data")]
+    if early:
+        f, r = execute(early, a.pkg, base_env, sub, a.timeout, board)
+        fails += f
+        ran += r
+
     # Data first. materialise() copies emitters/*.sqlite and verify/data/* into
     # working sets; on a clone that never ran ci/fetch_data.sh those files do not
     # exist and it dies with a FileNotFoundError traceback - a crash, not a
@@ -189,13 +238,20 @@ def main():
             print("\nDATA1 failed: the data the gates read is missing, truncated, or a pointer stub.")
             print("Run `bash ci/fetch_data.sh` (needs OBC_DATA_URL or OBC_DATA_DIR), then re-run.")
             print("Not running the remaining gates - they would read wrong data.")
-            json.dump(dict(summary=dict(ran=1, passed=0, failed=1, skipped=0, known_review=0,
+            # The board carries whatever already ran, not just DATA1. Reporting
+            # only the abort threw away real gate results that had passed.
+            board.append(dict(gate="DATA1", check="harden/checks/check40_dataintegrity.py",
+                              status="FAIL", exit=d.returncode,
+                              result=(d.stdout.strip().splitlines() or [""])[-1], seconds=0))
+            json.dump(dict(summary=dict(ran=ran + 1,
+                                        passed=sum(1 for b in board if b["status"] == "PASS"),
+                                        failed=fails + 1,
+                                        skipped=sum(1 for b in board if b["status"] == "SKIP"),
+                                        known_review=sum(1 for b in board if b["status"] == "KNOWN"),
                                         aborted="DATA1"),
-                           gates=[dict(gate="DATA1", check="harden/checks/check40_dataintegrity.py",
-                                       status="FAIL", exit=d.returncode,
-                                       result=(d.stdout.strip().splitlines() or [""])[-1], seconds=0)]),
+                           gates=board),
                       open(a.out, "w"), indent=1)
-            print("RESULT: FAIL 1 gate(s)")
+            print(f"RESULT: FAIL {fails + 1} gate(s)")
             sys.exit(1)
 
     pres = {c.get("pre") for c in checks if c.get("pre")}
@@ -219,29 +275,9 @@ def main():
                     full = os.path.join(root, f)
                     z.write(full, os.path.join("obc-interactive", os.path.relpath(full, a.pkg)))
 
-    board, fails, ran = [], 0, 0
-    print(f"{'gate':<12}{'status':<8}{'secs':>6}  check / result")
-    print("-" * 78)
-    for c in checks:
-        status, rc, msg, secs = run_one(c, a.pkg, base_env, sub, a.timeout)
-        gates = c["gate"] if isinstance(c["gate"], list) else [c["gate"]]
-        for g in gates:
-            board.append(dict(gate=g, check=c["script"], status=status, exit=rc,
-                              result=msg, seconds=round(secs, 1), note=c.get("note")))
-        if status in ("FAIL", "MISSING"):
-            fails += 1
-        if status not in ("SKIP",):
-            ran += 1
-        gid = ",".join(gates)
-        known = c.get("known")
-        if status == "FAIL" and known:
-            status_shown = "KNOWN"
-            fails -= 1     # enumerated, not silent: counted separately below
-            for b in board:
-                if b["check"] == c["script"]: b["status"] = "KNOWN"; b["note"] = known
-        else:
-            status_shown = status
-        print(f"{gid:<12}{status_shown:<8}{secs:>6.1f}  {os.path.basename(c['script'])}: {msg[:56]}")
+    f, r = execute(checks, a.pkg, base_env, sub, a.timeout, board)
+    fails += f
+    ran += r
 
     shutil.rmtree(tmp, ignore_errors=True)
     for scope in sorted(pres):

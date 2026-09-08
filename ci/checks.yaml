@@ -111,10 +111,11 @@ checks:
     slow: true
 
   # ---- enforcement ----
-  - {script: ci/test_hooks.sh, scope: ., gate: E1, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
+  - {script: ci/test_hooks.sh, scope: ., gate: E1, no_data: true, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
   - script: harden/checks/check41_machinery.py
     scope: harden
     gate: E2
+    no_data: true
     note: >-
       Verification machinery matches HEAD. The settings.json deny list and
       protect-checks.sh are registered on Edit/Write/MultiEdit only, so a Bash

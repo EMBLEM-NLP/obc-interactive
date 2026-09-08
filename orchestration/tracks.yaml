@@ -380,9 +380,13 @@ tracks:
     - PORT
     produces:
     - tools/diff_editions.py
+    - tools/fixtures/make_fixtures.py
     exit_criteria:
     - re-run on a modified source, diff the graph, review only what changed
     - 144 amendment records + AmendmentEvent model are the foundation; the diff is the missing piece
+    - 'OWED: M1 and M2 are established on synthetic fixtures only. No diff of two real editions has been run,
+      because this clone has no derived data (check40 --quick: 29 of 29 MISSING, exit 1). The corpus run is a
+      precondition of done, and both gates stay [ ] until it happens.'
     gates:
     - M1
     - M2
@@ -392,6 +396,13 @@ tracks:
     promotes:
     - from: proposed/MAINT/GATES-MAINT.md
       to: gates/GATES-MAINT.md
+    - from: proposed/MAINT/check45_diff.py
+      to: harden/checks/check45_diff.py
+    - from: proposed/MAINT/check35_MAINT_control.py
+      to: harden/checks/check35_controls.py
+      note: MERGE, not replace. Two mutation functions and two SUBPROCESS_CONTROLS rows, plus a `maint`
+        scope branch in run_subprocess_controls(). The exact edit is printed by
+        `python3 proposed/MAINT/check35_MAINT_control.py --promotion`.
     note: start during C/E, not after FRULES; the next amendment lands regardless
   ENFORCE:
     title: Claude Code enforcement layer — hooks, settings, skills, agent specs, MCP

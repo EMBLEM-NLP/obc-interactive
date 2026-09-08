@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Generate the package README from the artifacts.
+"""Generate PACKAGE.md (and FACTS.json) from the artifacts.
 
 The previous README was hand-written and carried link and bookmark counts copied
 from a report describing an EARLIER build. An external audit caught both. Numbers
 in a manifest should be measured at package time, not typed.
+
+Target: PACKAGE.md, not README.md. Track E9 split the front page in two, because
+"measured from the artifacts at package time" is true of the hydrated package and
+false of a git checkout, and the single file never said which one it described.
+README.md is now the source-checkout page and is hand-maintained; PACKAGE.md is
+the package page and is what this script writes into.
 """
 import os, sys, json, sqlite3, gzip, tarfile
 from collections import Counter
@@ -70,11 +76,18 @@ open_rows = [
  ("Akoma Ntoso", "deliberately deferred; the JSON graph is canonical"),
 ]
 rt = "| | |\n|---|---|\n" + "".join(f"| {a} | {b} |\n" for a, b in open_rows)
-_r = open(f"{PKG}/README.md", encoding="utf-8").read()
+# Track E9, 2026-09-08: OUTPUT PATH ONLY. The measured figures moved from
+# README.md to PACKAGE.md when the front page was split into the source-checkout
+# page (README.md) and the package-at-package-time page (PACKAGE.md). Nothing
+# else here changed. The "own the whole file instead of this span" refactor is
+# the right durable fix and is deliberately NOT in this pass: this script reads
+# emitters/obc.sqlite and the two built PDFs, all absent from a git checkout, so
+# a change to it cannot be exercised where it was written. See AUDIT-rev9.md.
+_r = open(f"{PKG}/PACKAGE.md", encoding="utf-8").read()
 _a = _r.index("## What is still open")
 _b = _r.index("## Licence and attribution")
 _r = _r[:_a] + "## What is still open\n\n" + rt + "\n---\n\n" + _r[_b:]
-open(f"{PKG}/README.md", "w", encoding="utf-8").write(_r)
+open(f"{PKG}/PACKAGE.md", "w", encoding="utf-8").write(_r)
 
 json.dump(dict(v1=v1, v2=v2, sqlite=sq, meta=meta, markdown_files=md_n,
                html_files=ht_n, ledgers=led, amendments=amend, residual=residual),

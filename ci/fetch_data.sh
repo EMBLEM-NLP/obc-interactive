@@ -16,8 +16,62 @@
 # Every file is checked against data-manifest.json before it is installed;
 # a mismatch aborts and leaves the tree untouched. Files already correct are
 # skipped, so this is cheap to re-run and safe in a cached CI step.
+#
+#   bash ci/fetch_data.sh --where   prints which variable to set and what it
+#                                   must point at, then exits 0 without fetching
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# --where: make the failure name its own remedy. Before this, a reader who hit
+# "set OBC_DATA_TARBALL, OBC_DATA_DIR, or OBC_DATA_URL" was told three variable
+# names and nothing about what any of them should contain, and README.md did not
+# mention this script at all (track E9, gate DOC1).
+if [ "${1:-}" = "--where" ]; then
+  python3 - <<'WHERE'
+import json, os, sys
+man = json.load(open("data-manifest.json"))
+files = man["files"]
+absent = [r for r in files if not os.path.exists(r["path"])]
+print(f"data-manifest.json lists {len(files)} files, {man['total_bytes']:,} bytes.")
+print(f"{len(absent)} are absent from this tree"
+      f"{' - nothing to fetch.' if not absent else ':'}")
+for r in absent[:4]:
+    print(f"    {r['bytes']:>11,}  {r['path']}")
+if len(absent) > 4:
+    print(f"    ... and {len(absent) - 4} more (harden/checks/check40_dataintegrity.py lists all)")
+print()
+print("Set exactly ONE of these, then re-run `bash ci/fetch_data.sh`:")
+print()
+print("  OBC_DATA_TARBALL   a URL or a local path to obc-interactive-data.tar.gz.")
+print("                     Member paths inside it are relative to the package")
+print("                     root, e.g. emitters/obc-mod.sqlite. Normal case.")
+print("                       export OBC_DATA_TARBALL=/mnt/backup/obc-interactive-data.tar.gz")
+print()
+print("  OBC_DATA_DIR       a path to a tree that ALREADY holds these files at")
+print("                     these same relative paths - another checkout, a")
+print("                     mounted volume, a CI cache. No network.")
+print("                       export OBC_DATA_DIR=/srv/obc-hydrated")
+print()
+print("  OBC_DATA_URL       a base URL serving one asset per file, with '/'")
+print("                     replaced by '__' (release assets cannot contain a")
+print("                     slash): $OBC_DATA_URL/emitters__obc-mod.sqlite")
+print("                       export OBC_DATA_URL=https://<host>/<owner>/<repo>/releases/download/data-v1")
+print()
+print("Every file is verified against its sha256 in data-manifest.json before")
+print("anything is installed; a mismatch aborts and leaves the tree untouched.")
+print()
+print("WHERE TO GET THE TARBALL: nowhere public, yet.")
+print("  No release of the derived data has been published. The locations in the")
+print("  header of this script are placeholders - `https://…/`, an ellipsis where")
+print("  the host belongs. Gate DOC1-D2 is RED for exactly this reason and stays")
+print("  red until a human publishes the artifact and writes its URL here.")
+print("  Until then OBC_DATA_DIR is the only mode that needs no such URL, and it")
+print("  needs someone to hand you a hydrated tree.")
+sys.exit(0)
+WHERE
+  exit 0
+fi
+
 python3 - <<'PY'
 import json, os, sys, hashlib, shutil, tarfile, tempfile, urllib.request
 

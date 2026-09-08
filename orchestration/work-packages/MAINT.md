@@ -6,6 +6,7 @@
 ## Produces
 
 - `tools/diff_editions.py`
+- `tools/fixtures/make_fixtures.py`
 
 ## Staged, then promoted by a human (PROTOCOL step 4a, R13)
 
@@ -14,6 +15,8 @@ You write the left column. You may not write the right column — `.claude/setti
 | you write | a human installs at |
 |---|---|
 | `proposed/MAINT/GATES-MAINT.md` | `gates/GATES-MAINT.md` |
+| `proposed/MAINT/check45_diff.py` | `harden/checks/check45_diff.py` |
+| `proposed/MAINT/check35_MAINT_control.py` | `harden/checks/check35_controls.py` |
 
 ## Gates to declare
 
@@ -26,6 +29,7 @@ Every gate that reports a ratio needs a mutation in `check35_controls.py` that d
 
 - re-run on a modified source, diff the graph, review only what changed
 - 144 amendment records + AmendmentEvent model are the foundation; the diff is the missing piece
+- OWED: M1 and M2 are established on synthetic fixtures only. No diff of two real editions has been run, because this clone has no derived data (check40 --quick: 29 of 29 MISSING, exit 1). The corpus run is a precondition of done, and both gates stay [ ] until it happens.
 
 ## Completion checklist (PROTOCOL.md — none optional)
 

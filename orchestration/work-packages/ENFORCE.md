@@ -24,6 +24,7 @@ You write the left column. You may not write the right column — `.claude/setti
 |---|---|
 | `proposed/ENFORCE/check42_produces.py` | `harden/checks/check42_produces.py` |
 | `proposed/ENFORCE/checks.yaml` | `ci/checks.yaml` |
+| `proposed/ENFORCE/guard-commit-and-corpus.sh.patch` | `.claude/hooks/guard-commit-and-corpus.sh` |
 
 ## Gates to declare
 

@@ -1,6 +1,6 @@
 {
   "generated_from": "orchestration/tracks.yaml",
-  "base_commit": "8621166fdc521f010806640e83c9cb5afee0cb58",
+  "base_commit": "09060a478d7a6217ecfbe8d0ab187fde46086114",
   "dispatchable_wave": 1,
   "note": "Waves after 1 are speculative: they assume the previous wave completes. One human review gate per wave boundary.",
   "waves": [

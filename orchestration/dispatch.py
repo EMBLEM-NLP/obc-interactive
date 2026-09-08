@@ -72,11 +72,22 @@ def _agent_for(tid, t):
 
 
 def head_commit():
-    """The commit a plan is planned against. A wave dispatched from a worktree
-    branched elsewhere is executing against a tree that does not contain the
-    machinery the plan names - see proposed/ENFORCE/worktree-base.md, where both
-    agents of wave 1 landed on the default branch instead of this one."""
-    r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PKG, capture_output=True, text=True)
+    """The commit a plan is planned against.
+
+    This is the commit that last touched `tracks.yaml`, NOT HEAD, and the
+    difference is the whole point. A plan is a function of the DAG, so it goes
+    stale when the DAG moves and only then. Recording HEAD instead made --check
+    fail immediately after every commit - including the commit that WROTE the
+    plan, which moves HEAD past the value just recorded in it. That is a gate
+    that cries wolf, and rev13 named the cost: one ignored just as thoroughly as
+    one that never fires.
+
+    A wave dispatched against a stale DAG is the real hazard - see
+    proposed/ENFORCE/worktree-base.md, where both agents of wave 1 landed on the
+    default branch instead of this one - and this catches exactly that.
+    """
+    r = subprocess.run(["git", "log", "-1", "--format=%H", "--",
+                        "orchestration/tracks.yaml"], cwd=PKG, capture_output=True, text=True)
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
@@ -223,8 +234,8 @@ def check(p, tracks_path=None):
             recorded = ""
         now = head_commit()
         if recorded and now and recorded != now:
-            errs.append(f"wave-plan.json was planned against {recorded[:8]} but HEAD is {now[:8]}; "
-                        f"re-run --plan before dispatching")
+            errs.append(f"wave-plan.json was planned against tracks.yaml at {recorded[:8]} "
+                        f"but it has since moved to {now[:8]}; re-run --plan before dispatching")
         elif not recorded:
             errs.append("wave-plan.json records no base_commit; re-run --plan")
 

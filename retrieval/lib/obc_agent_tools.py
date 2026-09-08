@@ -51,10 +51,29 @@ ATTRIBUTION = ("Unofficial. Current to 2025-01-16 (through O. Reg. 5/25). "
                "© King's Printer for Ontario, 2024. Reproduced with permission.")
 
 
+class DataUnavailable(RuntimeError):
+    """The graph is not on disk. Raised with the remedy, never bare.
+
+    An agent that calls a tool and gets `Error executing tool obc_capabilities`
+    learns only that something broke. Every other entry point in this project
+    names its cause: check40 lists the missing files, run_gates.py names the
+    DATA1 abort, regenerate.sh explains its refusal. The surface an agent
+    actually talks to said nothing at all. Observed 2026-09-08 over MCP.
+    """
+
+
+DATA_REMEDY = ("The derived data is not kept in git. Run: bash ci/fetch_data.sh "
+               "(needs OBC_DATA_URL, OBC_DATA_TARBALL or OBC_DATA_DIR), then "
+               "restart the MCP server.")
+
+
 def db():
     global _db
     if _db is None:
-        _db = connect(DB_PATH)
+        try:
+            _db = connect(DB_PATH)
+        except FileNotFoundError as e:
+            raise DataUnavailable(f"the OBC graph is not available: {e}. {DATA_REMEDY}") from e
     return _db
 
 
@@ -232,7 +251,22 @@ def capabilities() -> dict:
     objectives, or currency. A confident answer to a question in `cannot` is a
     hallucination by construction - the data to support it does not exist.
     Every `cannot` entry carries the SQL that established it."""
-    c = db()
+    # A tool whose job is to state limits must still answer when the graph is
+    # absent - that is the widest limit there is. Returning it as data beats
+    # raising, because the agent can read it and stop rather than retry.
+    try:
+        c = db()
+    except DataUnavailable as e:
+        return dict(
+            edition="2024 Building Code Compendium, current to 2025-01-16 (O. Reg. 5/25)",
+            available=False,
+            reason=str(e),
+            remedy=DATA_REMEDY,
+            database=DB_PATH,
+            can=[],
+            cannot=["anything at all: the graph is not present on this machine, "
+                    "so every question about the Code is unanswerable here"],
+            attribution=ATTRIBUTION)
     stats = dict(
         nodes=c.execute("SELECT COUNT(*) FROM node").fetchone()[0],
         articles=c.execute("SELECT COUNT(*) FROM node WHERE type='article'").fetchone()[0],

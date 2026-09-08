@@ -26,9 +26,11 @@ Usage:
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import sys
+import urllib.parse
 from collections import OrderedDict
 
 DB = "obc.sqlite"
@@ -71,8 +73,31 @@ def modality_of(text):
     return "statement"
 
 
-def connect(path=DB):
-    c = sqlite3.connect(path)
+def connect(path=DB, readonly=True):
+    """Open the graph. READ-ONLY by default.
+
+    sqlite3.connect() CREATES an empty database when the file is absent, so a
+    reader pointed at missing data silently produced a 0-byte sqlite and the
+    next query failed with `no such table: node` - a schema error standing in
+    for a missing-file error, which is the silent-wrong-data failure this
+    project exists to catch. Observed 2026-09-08: the Stop hook ran check35 on
+    a clone that had never fetched the data and reported "a ratio gate has no
+    falsifying mutation" when no ratio gate was broken at all.
+
+    Every caller in this repository reads. Writers - stage18, stage19,
+    stage20, check38's seeder, check35's mutations - open their own
+    connections and are unaffected. Pass readonly=False if that ever changes.
+    """
+    if not readonly:
+        c = sqlite3.connect(path)
+        c.row_factory = sqlite3.Row
+        return c
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"{path} does not exist. The derived data is not kept in git; "
+            f"run: bash ci/fetch_data.sh   "
+            f"(needs OBC_DATA_URL, OBC_DATA_TARBALL or OBC_DATA_DIR)")
+    c = sqlite3.connect(f"file:{urllib.parse.quote(path)}?mode=ro", uri=True)
     c.row_factory = sqlite3.Row
     return c
 

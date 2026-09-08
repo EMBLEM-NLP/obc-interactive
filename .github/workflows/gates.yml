@@ -26,11 +26,14 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: hf-${{ hashFiles('requirements.txt') }}
-      - name: fetch derived data (315 MB, verified against data-manifest.json)
-        env: { OBC_DATA_URL: "${{ secrets.OBC_DATA_URL }}" }
-        run: bash ci/fetch_data.sh
+      # E1 needs no data, so it runs BEFORE the fetch. Runs 1 and 2 both died at
+      # the fetch with OBC_DATA_URL unset and skipped this, so two CI runs
+      # produced no gate result at all when one was available for free.
       - name: hooks are falsifiable
         run: bash ci/test_hooks.sh
+      - name: fetch derived data (323 MB, verified against data-manifest.json)
+        env: { OBC_DATA_URL: "${{ secrets.OBC_DATA_URL }}" }
+        run: bash ci/fetch_data.sh
       - name: fetch Crown-copyright sources from secrets (URLs never enter agent context)
         env:
           OBC_PDF_URL_V1: ${{ secrets.OBC_PDF_URL_V1 }}
@@ -51,7 +54,13 @@ jobs:
         run: python3 orchestration/schedule.py --check
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: gate-board, path: ci/gate-board.json }
+        with:
+          name: gate-board
+          path: ci/gate-board.json
+          # A missing board must not read as a delivered one. The default
+          # (warn) let run 1 show this step green while logging "No files were
+          # found" - the board did not exist because the job died at the fetch.
+          if-no-files-found: error
       - name: summarise the board on the PR
         if: github.event_name == 'pull_request'
         uses: anthropics/claude-code-action@v1

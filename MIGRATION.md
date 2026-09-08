@@ -5,7 +5,7 @@
 **Readiness, stated precisely:** the tree is ready to *migrate*. It is not ready for *autonomous execution* until step 5 has been observed. Those are different claims and this document keeps them apart.
 
 What "ready to migrate" was tested to mean, on 2026-09-07:
-- `git init` + `git add -A` + commit on a copy stages 217 files, excludes every transient, keeps hooks executable
+- `git init` + `git add -A` + commit on a copy stages 197 files, excludes every transient, keeps hooks executable (measured on the seed commit 2026-09-08; the count grows as the audit trail does)
 - from a clone **not** named `obc-interactive`, with `.git/` present: `ci/regenerate.sh` is idempotent (zero tracked changes) and two consecutive full board runs both PASS with zero tracked changes between them
 - 19 hook cases pass as scripts against Claude Code's stdin format, including fail-closed on garbage input
 - the MCP server finds its database from any working directory
@@ -18,7 +18,7 @@ What was **not** tested, because it cannot be here: anything Claude Code itself 
 
 ### 1. Create the repository — 15 minutes
 
-Unzip `obc-interactive-repo.zip` (9 MB — code only; the 315 MB of derived binaries are deliberately not in it).
+Unzip `obc-interactive-repo.zip` (402 KB — code only; the 323 MB of derived binaries are deliberately not in it).
 
 ```
 cd obc-interactive

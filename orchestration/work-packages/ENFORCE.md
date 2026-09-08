@@ -1,6 +1,6 @@
 # Work package — ENFORCE: Claude Code enforcement layer — hooks, settings, skills, agent specs, MCP
 
-**Status in DAG:** `done`  ·  **Effort:** —
+**Status in DAG:** `done`  ·  **Human effort (typed):** —  ·  **Agent effort:** unmeasured  ·  **Human gate:** —
 **Depends on:** A2  ·  **Unblocks:** (nothing downstream)
 
 > First action in Claude Code: run one trivial track with the hooks live and confirm each fires. Nothing here is proven under the host until then.
@@ -15,6 +15,15 @@
 - `CLAUDE.md`
 - `ci/fetch_sources.sh`
 - `check38_capabilities.py`
+
+## Staged, then promoted by a human (PROTOCOL step 4a, R13)
+
+You write the left column. You may not write the right column — `.claude/settings.json`, `protect-checks.sh` and `guard-machinery.sh` all refuse it, and gate E2 catches it however it is produced.
+
+| you write | a human installs at |
+|---|---|
+| `proposed/ENFORCE/check42_produces.py` | `harden/checks/check42_produces.py` |
+| `proposed/ENFORCE/checks.yaml` | `ci/checks.yaml` |
 
 ## Gates to declare
 
@@ -34,6 +43,9 @@ AUDIT-rev5.md; 16/16 hook cases correct incl. fail-closed on garbage input; gate
 - [ ] 2 BUILD     in a copy of the tree, never in the bag
 - [ ] 3 MUTATE    every ratio gate registered in harden/checks/check35_controls.py; check35 PASS
 - [ ] 4 INTEGRATE real paths, orchestration wired, superseded files moved not deleted
+- [ ] 4a PROMOTE  every protected output STAGED at proposed/ENFORCE/<basename> and declared
+                  under `promotes:` in tracks.yaml — never written at its real path (R13);
+                  flat per track, never proposed/harden/checks/... (R14)
 - [ ] 5 RE-BAG    bash ci/regenerate.sh; rebuild; provenance regenerated
 - [ ] 6 VERIFY    python3 ci/run_gates.py from a CLEAN bag — every touched gate PASS, corpus mode
 - [ ] 7 AUDIT     addendum: what moved, what did not, what broke, what was FOUND

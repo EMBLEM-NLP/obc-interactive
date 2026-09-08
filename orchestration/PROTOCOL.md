@@ -13,6 +13,9 @@ Every track runs the same seven steps. None is optional. A track that skips one 
 2. BUILD      in a copy of the package tree, never in the bag
 3. MUTATE     register an H10 control for every ratio gate; run check35
 4. INTEGRATE  place files at real, convention-matched paths; wire orchestration
+4a PROMOTE    verification machinery is STAGED, never written: proposed/<TRACK>/
+              <basename>, declared under `promotes:` in tracks.yaml, installed
+              at its real path by a human. Gate E3 (check42) enforces it.
 5. RE-BAG     rebuild with harden/make_bag.py logic; regenerate provenance
 6. VERIFY     with the user's own unmodified checks: check21, check26, and
               every gate the track touched, in corpus mode, from a CLEAN bag
@@ -64,6 +67,14 @@ State every limit as something that refuses, and prove it refuses. A sentence in
 ### R12 — A path guard must match every spelling of the path.
 *Wrote it:* the same dispatch. `guard-machinery` blocked `sed -i harden/checks/check35_controls.py` and allowed `touch /home/user/obc-interactive/harden/checks/check35_controls.py` — the same file, named absolutely. The matcher understood only repo-relative paths, so the hit list came back empty and the guard waved it through. A subagent in an isolated worktree wrote to the main checkout that way: git is fenced between worktrees, ordinary filesystem writes are not.
 
+### R13 — A track never writes verification machinery. It proposes it.
+Checks, gate ledgers, `ci/`, the workflow and the hooks are refused to every executor by `.claude/settings.json`, `protect-checks.sh` and `guard-machinery.sh`, and drift is caught by gate E2 however it was produced. A track that must add one stages it at `proposed/<TRACK>/<basename>` and declares `promotes: [{from, to}]` in `tracks.yaml`; step 4a installs it under review.
+*Wrote it:* the DAG and the enforcement layer contradicted each other for four revisions. `tracks.yaml` told A4 to produce `harden/checks/check36_schema.py`, G to produce `check38`/`check39`, D `check36_modality.py`, FSCOPE `gates/GATES-scope.md` — every one denied. Worse, PROTOCOL step 1 above told **every** track to write `gates/GATES-<track>.md` first, so the first action of every track was a refused write and four `ready` tracks could not begin. It was noted in ENFORCE's evidence in revision 10 and stayed noted, because a sentence in an audit is not a mechanism (R11). Gate E3, `check42_produces.py`, is the mechanism: 16 findings before the rewrite, 0 after, and a NEGATIVE control that seeds a protected `produces` entry and requires detection.
+
+### R14 — The staging tree is flat per track, because the matcher is suffix-based.
+`proposed/<TRACK>/<basename>`, never `proposed/harden/checks/...`.
+*Wrote it:* the mirrored layout, written and then measured on the same day. `check41._candidates()` expands an absolute path into every suffix of itself so a worktree naming the main checkout absolutely is still caught (R12). It does not know what staging is, so `proposed/harden/checks/check36_schema.py` is permitted spelled relatively and **refused spelled absolutely** — the same file, two spellings, two answers. `check42 --layout` prints the four-row table that shows it. A flat per-track directory has no suffix that can match a pattern needing `harden/checks/`, `gates/GATES-` or `ci/`.
+
 ### R10 — Audit yourself at the same standard.
 Correction is recorded, not overwritten. Revision 1 of the audit was wrong about RO-Crate; it is preserved unedited with the correction beneath it. "One line each" was wrong by a factor of three; revision 3 says so in its first section. An audit that retouches its own past findings is a status report.
 
@@ -90,9 +101,15 @@ Tracks communicate through the bag, not through chat.
 
 ## Parallelism
 
-`schedule.py` reads `tracks.yaml` and reports what is `ready`. Tracks listed under `parallel_with` may run concurrently on separate copies of the package tree; they merge by rebuilding the bag in dependency order. Two tracks editing the same file — `check35_controls.py`, `obc_agent_tools.py` — serialise on that file.
+`schedule.py` reads `tracks.yaml` and derives what is `ready`. `dispatch.py --plan` turns that into **waves**: a wave is a set of ready tracks that may run concurrently, split so that no two tracks in it share a `serialises_on:` entry and no track in it waits on an unanswered decision. `dispatch.py` plans; it never launches. One human review gate per wave boundary.
 
-The critical path is A2 → A4 → B → G → FSCOPE → D. Everything else is parallel to it. Do not let C, E, or MAINT starve the critical path of attention; they are important and they are not blocking.
+`serialises_on:` names real shared write targets only. It does NOT list `check35_controls.py`: under R13 each track stages its own H10 fragment as `proposed/<TRACK>/check35_<TRACK>_control.py`, so the registry is merged once at promote rather than contended during the build. Staging dissolved that collision; it does not dissolve `emitters/obc.sqlite` (B and E) or `retrieval/lib/obc_agent_tools.py` (G and FSCOPE), which stay declared.
+
+**Worktrees do not isolate filesystem writes.** Git is fenced between them; ordinary writes are not, and a subagent in a worktree reached the main checkout by absolute path on 2026-09-08 (R12). Gate E2 is therefore the only guarantee, and `integrate-track` runs `check41_machinery.py` against the **main checkout** before every merge.
+
+The critical path is A4 → B → G → FSCOPE → FOBJ → FRULES. Everything else is parallel to it. Do not let C, E, or MAINT starve the critical path of attention; they are important and they are not blocking.
+
+**On the effort numbers.** `human_effort:` is typed and always was. `agent_effort:` reads `unmeasured` on every track and may only ever be written from a completed dispatch — R9 applies to this project's own schedule, and the "~17 weeks" figure it replaces was 7 weeks of parser bug over 10 weeks of guess.
 
 ---
 

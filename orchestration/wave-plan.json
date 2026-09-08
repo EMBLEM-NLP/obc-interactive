@@ -1,0 +1,172 @@
+{
+  "generated_from": "orchestration/tracks.yaml",
+  "dispatchable_wave": 1,
+  "note": "Waves after 1 are speculative: they assume the previous wave completes. One human review gate per wave boundary.",
+  "waves": [
+    {
+      "wave": 1,
+      "speculative": false,
+      "tracks": [
+        {
+          "track": "A4",
+          "title": "Declared schema (LinkML) with constraints",
+          "agent": "build-track",
+          "then": [
+            "integrate-track",
+            "verify-track"
+          ],
+          "package": "orchestration/work-packages/A4.md",
+          "gates": [
+            "S0"
+          ],
+          "promotes": [
+            {
+              "from": "proposed/A4/check36_schema.py",
+              "to": "harden/checks/check36_schema.py"
+            },
+            {
+              "from": "proposed/A4/check35_A4_control.py",
+              "to": "harden/checks/check35_controls.py"
+            },
+            {
+              "from": "proposed/A4/GATES-A4.md",
+              "to": "gates/GATES-A4.md"
+            }
+          ],
+          "serialises_on": [],
+          "agent_effort": "unmeasured"
+        },
+        {
+          "track": "E",
+          "title": "Data fidelity and gap-register closure",
+          "agent": "build-track",
+          "then": [
+            "integrate-track",
+            "verify-track"
+          ],
+          "package": "orchestration/work-packages/E.md",
+          "gates": [
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5"
+          ],
+          "promotes": [
+            {
+              "from": "proposed/E/GATES-E.md",
+              "to": "gates/GATES-E.md"
+            }
+          ],
+          "serialises_on": [
+            "emitters/obc.sqlite"
+          ],
+          "agent_effort": "unmeasured"
+        },
+        {
+          "track": "MAINT",
+          "title": "Amendment diff pipeline",
+          "agent": "build-track",
+          "then": [
+            "integrate-track",
+            "verify-track"
+          ],
+          "package": "orchestration/work-packages/MAINT.md",
+          "gates": [
+            "M1",
+            "M2"
+          ],
+          "promotes": [
+            {
+              "from": "proposed/MAINT/GATES-MAINT.md",
+              "to": "gates/GATES-MAINT.md"
+            }
+          ],
+          "serialises_on": [],
+          "agent_effort": "unmeasured"
+        }
+      ],
+      "held": [
+        {
+          "track": "C",
+          "reason": "human gate \u2014 DEC2 \u2014 external exposure sets C1 urgency and RO-Crate depth"
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "speculative": true,
+      "tracks": [
+        {
+          "track": "B",
+          "title": "Model correctness \u2014 fix at source, one re-embed",
+          "agent": "build-track",
+          "then": [
+            "embed-track",
+            "integrate-track",
+            "verify-track"
+          ],
+          "package": "orchestration/work-packages/B.md",
+          "gates": [
+            "G5",
+            "V3",
+            "R4a",
+            "R4b",
+            "R4c",
+            "D1",
+            "S0"
+          ],
+          "promotes": [
+            {
+              "from": "proposed/B/GATES-B.md",
+              "to": "gates/GATES-B.md"
+            }
+          ],
+          "serialises_on": [
+            "emitters/obc.sqlite",
+            "retrieval/stage19_embed.py"
+          ],
+          "agent_effort": "unmeasured"
+        }
+      ],
+      "held": [
+        {
+          "track": "C",
+          "reason": "human gate \u2014 DEC2 \u2014 external exposure sets C1 urgency and RO-Crate depth"
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "speculative": true,
+      "tracks": [],
+      "held": [
+        {
+          "track": "C",
+          "reason": "human gate \u2014 DEC2 \u2014 external exposure sets C1 urgency and RO-Crate depth"
+        },
+        {
+          "track": "G",
+          "reason": "human gate \u2014 DEC1 \u2014 assist-vs-judge shapes G4's refusal set, built here"
+        },
+        {
+          "track": "D",
+          "reason": "unreachable \u2014 waiting on FSCOPE, and that chain ends at a human gate"
+        },
+        {
+          "track": "FOBJ",
+          "reason": "unreachable \u2014 waiting on FSCOPE, and that chain ends at a human gate"
+        },
+        {
+          "track": "FRULES",
+          "reason": "conditional \u2014 DECISION REQUIRED: assist or judge? Scoping lets the agent help with design; com"
+        },
+        {
+          "track": "FSCOPE",
+          "reason": "unreachable \u2014 waiting on G, and that chain ends at a human gate"
+        }
+      ],
+      "note": "no track is dispatchable; every remaining track waits on a human"
+    }
+  ]
+}

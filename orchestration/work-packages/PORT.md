@@ -1,6 +1,6 @@
 # Work package — PORT: Path portability — every check runs from the bag
 
-**Status in DAG:** `done`  ·  **Effort:** —
+**Status in DAG:** `done`  ·  **Human effort (typed):** —  ·  **Agent effort:** unmeasured  ·  **Human gate:** —
 **Depends on:** A3  ·  **Unblocks:** A2, A4, C, E, MAINT
 
 ## Produces
@@ -27,6 +27,9 @@ AUDIT-rev3.md; H1/H4/H5 PASS from a clean bag; 0 bare literals in 60 files
 - [ ] 2 BUILD     in a copy of the tree, never in the bag
 - [ ] 3 MUTATE    every ratio gate registered in harden/checks/check35_controls.py; check35 PASS
 - [ ] 4 INTEGRATE real paths, orchestration wired, superseded files moved not deleted
+- [ ] 4a PROMOTE  every protected output STAGED at proposed/PORT/<basename> and declared
+                  under `promotes:` in tracks.yaml — never written at its real path (R13);
+                  flat per track, never proposed/harden/checks/... (R14)
 - [ ] 5 RE-BAG    bash ci/regenerate.sh; rebuild; provenance regenerated
 - [ ] 6 VERIFY    python3 ci/run_gates.py from a CLEAN bag — every touched gate PASS, corpus mode
 - [ ] 7 AUDIT     addendum: what moved, what did not, what broke, what was FOUND

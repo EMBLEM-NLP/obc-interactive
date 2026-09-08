@@ -27,6 +27,9 @@ CHECKLIST = """## Completion checklist (PROTOCOL.md — none optional)
 - [ ] 2 BUILD     in a copy of the tree, never in the bag
 - [ ] 3 MUTATE    every ratio gate registered in harden/checks/check35_controls.py; check35 PASS
 - [ ] 4 INTEGRATE real paths, orchestration wired, superseded files moved not deleted
+- [ ] 4a PROMOTE  every protected output STAGED at proposed/{tid}/<basename> and declared
+                  under `promotes:` in tracks.yaml — never written at its real path (R13);
+                  flat per track, never proposed/harden/checks/... (R14)
 - [ ] 5 RE-BAG    bash ci/regenerate.sh; rebuild; provenance regenerated
 - [ ] 6 VERIFY    python3 ci/run_gates.py from a CLEAN bag — every touched gate PASS, corpus mode
 - [ ] 7 AUDIT     addendum: what moved, what did not, what broke, what was FOUND
@@ -39,7 +42,10 @@ def render(tid, t):
     deps = t.get("depends_on") or []
     succ = [k for k, v in tracks.items() if tid in (v.get("depends_on") or [])]
     L = [f"# Work package — {tid}: {t['title']}", ""]
-    L += [f"**Status in DAG:** `{t.get('status')}`  ·  **Effort:** {t.get('effort', '—')}"]
+    L += [f"**Status in DAG:** `{t.get('status')}`  ·  "
+          f"**Human effort (typed):** {t.get('human_effort', '—')}  ·  "
+          f"**Agent effort:** {t.get('agent_effort', 'unmeasured')}  ·  "
+          f"**Human gate:** {t.get('human_gate', '—')}"]
     L += [f"**Depends on:** {', '.join(deps) or '(none)'}  ·  **Unblocks:** {', '.join(succ) or '(nothing downstream)'}"]
     if t.get("parallel_with"):
         L += [f"**May run in parallel with:** {', '.join(t['parallel_with'])} — on a separate copy of the tree; serialise on shared files."]
@@ -54,6 +60,18 @@ def render(tid, t):
         L += ["## Consumes", ""] + [f"- `{x}`" for x in t["consumes"]] + [""]
     if t.get("produces"):
         L += ["## Produces", ""] + [f"- `{x}`" for x in t["produces"]] + [""]
+    if t.get("promotes"):
+        L += ["## Staged, then promoted by a human (PROTOCOL step 4a, R13)", "",
+              "You write the left column. You may not write the right column — "
+              "`.claude/settings.json`, `protect-checks.sh` and `guard-machinery.sh` all refuse it, "
+              "and gate E2 catches it however it is produced.", "",
+              "| you write | a human installs at |", "|---|---|"]
+        L += [f"| `{e['from']}` | `{e['to']}` |" for e in t["promotes"]] + [""]
+    if t.get("serialises_on"):
+        L += ["## Serialises on", "",
+              "Another track writes these too. `dispatch.py` will not place two tracks "
+              "sharing one of them in the same wave.", ""]
+        L += [f"- `{x}`" for x in t["serialises_on"]] + [""]
     if t.get("items"):
         L += ["## Items", ""] + [f"- **{k}** — {v}" for k, v in t["items"].items()] + [""]
     L += ["## Gates to declare", ""] + [f"- `{g}`" for g in (t.get("gates") or [])]

@@ -36,7 +36,14 @@ hooks:
 ---
 You execute ONE track of the OBC document-graph pipeline. The track id is in your prompt.
 
-ROLE: builder. You write stages, schemas, tools, and the H10 controls for the gates you introduce. You do not write or edit checks, gate ledgers, CI, or hooks — those are read-only and the hooks will block you; propose changes in the audit addendum.
+ROLE: builder. You write stages, schemas, tools, and the H10 controls for the gates you introduce.
+
+You do not write checks, gate ledgers, `ci/`, the workflow, or hooks. Those are refused by `.claude/settings.json`, `protect-checks.sh` and `guard-machinery.sh`, and gate E2 catches the effect however it was produced. **This does not mean your track cannot have them — it means you STAGE them** (PROTOCOL step 4a, R13):
+
+- write the file at `proposed/<YOUR_TRACK>/<basename>` — **flat, one directory per track**;
+- your work package's "Staged, then promoted" table already lists what goes where.
+
+Never `proposed/harden/checks/...`. That layout is permitted spelled relatively and refused spelled absolutely, because `check41._candidates()` expands an absolute path into every suffix of itself (R14). `python3 proposed/ENFORCE/check42_produces.py --layout` prints the evidence. Gate E3 fails the board if a track's `produces` names a protected path at all.
 
 FIRST: read `orchestration/work-packages/<TRACK>.md`. Then read resource `obc://capabilities` — the graph tells you what it cannot answer, and a confident answer to any of those is a hallucination by construction.
 
@@ -46,4 +53,4 @@ TERMINATION: the Stop hook runs check40, then check35, then the board. Do not re
 
 ESCALATE — do not assume — if the track touches DEC1 (assist vs judge), DEC2 (external exposure), DEC3 (hub token cap), or DEC4 (building-official availability). Ask, and stop.
 
-OUTPUT: the audit addendum (four sections) and an updated `tracks.yaml` status for your track only. A pack of loose files is step 2, not done.
+OUTPUT: the audit addendum (four sections), an updated `tracks.yaml` status for your track only, and a `promotes:` entry for anything you staged. Leave `agent_effort:` alone — the orchestrator writes it from the measured dispatch, never you (R9). A pack of loose files is step 2, not done.

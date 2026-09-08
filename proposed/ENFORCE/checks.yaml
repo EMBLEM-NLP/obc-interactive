@@ -1,0 +1,16 @@
+# FRAGMENT for ci/checks.yaml — not a replacement. PROTOCOL step 4a PROMOTE:
+# a human inserts the row below into the `# ---- enforcement ----` block of
+# ci/checks.yaml, after the E2 entry, and commits it. ci/checks.yaml is
+# protected, so no executor may write it directly (R13).
+checks:
+  - script: harden/checks/check42_produces.py
+    scope: .
+    gate: E3
+    no_data: true
+    note: >-
+      No open track is specified to produce a path the guard refuses. tracks.yaml
+      told A4, G, D and FSCOPE to write into harden/checks/, retrieval/checks/
+      and gates/, and PROTOCOL step 1 told every track to write its own ledger
+      there first — all denied to every executor, so four ready tracks could not
+      take step 1. Nothing compared the DAG against PROTECTED until this gate.
+      Reads the same list check41 owns; a fourth consumer, not a fifth copy.

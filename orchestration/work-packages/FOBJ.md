@@ -1,12 +1,20 @@
 # Work package — FOBJ: Objectives and functional statements
 
-**Status in DAG:** `blocked`  ·  **Effort:** 2 weeks
+**Status in DAG:** `blocked`  ·  **Human effort (typed):** 2 weeks  ·  **Agent effort:** unmeasured  ·  **Human gate:** none
 **Depends on:** FSCOPE  ·  **Unblocks:** FRULES
 
 ## Produces
 
 - `retrieval/stage23_objectives.py`
 - `ATTRIBUTED_TO_OBJECTIVE edges`
+
+## Staged, then promoted by a human (PROTOCOL step 4a, R13)
+
+You write the left column. You may not write the right column — `.claude/settings.json`, `protect-checks.sh` and `guard-machinery.sh` all refuse it, and gate E2 catches it however it is produced.
+
+| you write | a human installs at |
+|---|---|
+| `proposed/FOBJ/GATES-FOBJ.md` | `gates/GATES-FOBJ.md` |
 
 ## Gates to declare
 
@@ -21,6 +29,9 @@ Every gate that reports a ratio needs a mutation in `check35_controls.py` that d
 - [ ] 2 BUILD     in a copy of the tree, never in the bag
 - [ ] 3 MUTATE    every ratio gate registered in harden/checks/check35_controls.py; check35 PASS
 - [ ] 4 INTEGRATE real paths, orchestration wired, superseded files moved not deleted
+- [ ] 4a PROMOTE  every protected output STAGED at proposed/FOBJ/<basename> and declared
+                  under `promotes:` in tracks.yaml — never written at its real path (R13);
+                  flat per track, never proposed/harden/checks/... (R14)
 - [ ] 5 RE-BAG    bash ci/regenerate.sh; rebuild; provenance regenerated
 - [ ] 6 VERIFY    python3 ci/run_gates.py from a CLEAN bag — every touched gate PASS, corpus mode
 - [ ] 7 AUDIT     addendum: what moved, what did not, what broke, what was FOUND

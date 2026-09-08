@@ -96,7 +96,7 @@ tracks:
     produces:
     - schema/obc.linkml.yaml
     - schema/obc.shacl.ttl (generated)
-    - harden/checks/check36_schema.py
+    - proposed/A4/check36_schema.py
     gates:
     - S0
     exit_criteria:
@@ -105,7 +105,16 @@ tracks:
       a reverse path)
     - S0 has an H10 control — inject a node with an undeclared type, validation must fail
     - schema under ~300 lines, or refactor the model first
-    effort: 3-5 days
+    human_effort: 3-5 days
+    agent_effort: unmeasured
+    human_gate: none
+    promotes:
+    - from: proposed/A4/check36_schema.py
+      to: harden/checks/check36_schema.py
+    - from: proposed/A4/check35_A4_control.py
+      to: harden/checks/check35_controls.py
+    - from: proposed/A4/GATES-A4.md
+      to: gates/GATES-A4.md
     parallel_with:
     - A2
   B:
@@ -138,7 +147,15 @@ tracks:
     - all four items land, THEN one re-embed; never three
     - embed_meta.vectors_sha256 changes; recall@5 on evalset must not regress
     - shipped obc.sqlite byte-matches a fresh rebuild (check20 whole-file)
-    effort: 3 days
+    human_effort: 3 days
+    agent_effort: unmeasured
+    human_gate: none
+    serialises_on:
+    - emitters/obc.sqlite
+    - retrieval/stage19_embed.py
+    promotes:
+    - from: proposed/B/GATES-B.md
+      to: gates/GATES-B.md
     trap: 'B1 must reuse obc_context.owns_table so the assembler and embedder agree on what an article''s text is. Two definitions
       of "the text" is how the table-binding bug happened.
 
@@ -153,8 +170,8 @@ tracks:
     - emitters/obc-vec.sqlite
     produces:
     - retrieval/lib/obc_agent_tools.py (G1 hybrid search, G2 computed cannot-list)
-    - retrieval/checks/check38_capabilities.py
-    - retrieval/checks/check39_tools.py
+    - proposed/G/check38_capabilities.py
+    - proposed/G/check39_tools.py
     - retrieval/refusal-evalset.json
     items:
       G1: hybrid (vector ∪ BM25, RRF) inside obc_search; remove "no semantic index" from cannot
@@ -170,7 +187,18 @@ tracks:
     exit_criteria:
     - G2's check has an H10 control — add an occupancy node, the applicability line must disappear from cannot
     - hallucinated-applicability rate measured and near zero
-    effort: 1 week
+    human_effort: 1 week
+    agent_effort: unmeasured
+    human_gate: DEC1 — assist-vs-judge shapes G4's refusal set, built here
+    serialises_on:
+    - retrieval/lib/obc_agent_tools.py
+    promotes:
+    - from: proposed/G/check38_capabilities.py
+      to: retrieval/checks/check38_capabilities.py
+    - from: proposed/G/check39_tools.py
+      to: retrieval/checks/check39_tools.py
+    - from: proposed/G/GATES-G.md
+      to: gates/GATES-G.md
   FSCOPE:
     title: Applicability — occupancy, predicates, APPLIES_TO, obc_scope
     status: blocked
@@ -185,7 +213,7 @@ tracks:
     - retrieval/stage21_occupancy.py
     - retrieval/stage22_applicability.py
     - retrieval/lib/obc_agent_tools.py (obc_scope)
-    - gates/GATES-scope.md
+    - proposed/FSCOPE/GATES-FSCOPE.md
     items:
       F1: occupancy nodes A1-A4, B1-B3, C, D, E, F1-F3
       F2: Part-applicability predicate table with node-id provenance
@@ -199,7 +227,14 @@ tracks:
     exit_criteria:
     - S3: obc_scope on 20 hand-verified building descriptions matches a building official
     - S4 (H10): ablate the predicate table, obc_scope must REFUSE not guess
-    effort: 2 weeks
+    human_effort: 2 weeks
+    agent_effort: unmeasured
+    human_gate: DEC4 — a building official for S3
+    serialises_on:
+    - retrieval/lib/obc_agent_tools.py
+    promotes:
+    - from: proposed/FSCOPE/GATES-FSCOPE.md
+      to: gates/GATES-FSCOPE.md
     trap: This is not a rule engine. Division A 1.1.2 is a predicate table. Do not reach for LegalRuleML here.
   D:
     title: Measurement
@@ -209,7 +244,7 @@ tracks:
     produces:
     - retrieval/evalset-v2.json
     - retrieval/agent-tasks.json
-    - retrieval/checks/check36_modality.py
+    - proposed/D/check36_modality.py
     items:
       D1: 150 competency questions, >=40% paraphrase, hubs, Div C, Act, SB
       D2: agent-task evaluation — multi-step, scored on scoping + provisions + citations + refusal
@@ -223,7 +258,14 @@ tracks:
     exit_criteria:
     - keep the SHA-256 split, dev-only tuning, no-shared-content-word constraint
     - D4 requires a human outside this system; if unavailable, D3 stays PLANNED and the accuracy claim stays unquantified
-    effort: 1 week
+    human_effort: 1 week
+    agent_effort: unmeasured
+    human_gate: DEC4 — two days of a building official (D3, D4)
+    promotes:
+    - from: proposed/D/check36_modality.py
+      to: retrieval/checks/check36_modality.py
+    - from: proposed/D/GATES-D.md
+      to: gates/GATES-D.md
   C:
     title: Identity and portability
     status: ready
@@ -239,7 +281,12 @@ tracks:
     gates:
     - C1
     - C2
-    effort: 1 week
+    human_effort: 1 week
+    agent_effort: unmeasured
+    human_gate: DEC2 — external exposure sets C1 urgency and RO-Crate depth
+    promotes:
+    - from: proposed/C/GATES-C.md
+      to: gates/GATES-C.md
     parallel_with:
     - A2
     - A4
@@ -266,7 +313,14 @@ tracks:
     - T5
     exit_criteria:
     - E5 absence claims need H4 controls: a detector reporting zero must be shown to report presence on a seeded fixture
-    effort: 2 weeks
+    human_effort: 2 weeks
+    agent_effort: unmeasured
+    human_gate: none
+    serialises_on:
+    - emitters/obc.sqlite
+    promotes:
+    - from: proposed/E/GATES-E.md
+      to: gates/GATES-E.md
     parallel_with:
     - A2
     - A4
@@ -282,7 +336,12 @@ tracks:
     gates:
     - O1
     - O2
-    effort: 2 weeks
+    human_effort: 2 weeks
+    agent_effort: unmeasured
+    human_gate: none
+    promotes:
+    - from: proposed/FOBJ/GATES-FOBJ.md
+      to: gates/GATES-FOBJ.md
   FRULES:
     title: Compliance checking — LegalRuleML / RASE
     status: conditional
@@ -298,7 +357,12 @@ tracks:
     - C2
     - C3
     - C4
-    effort: 4 weeks+
+    human_effort: 4 weeks+
+    agent_effort: unmeasured
+    human_gate: DEC1 — assist or judge; the track may not start without it
+    promotes:
+    - from: proposed/FRULES/GATES-FRULES.md
+      to: gates/GATES-FRULES.md
   MAINT:
     title: Amendment diff pipeline
     status: ready
@@ -309,11 +373,24 @@ tracks:
     exit_criteria:
     - re-run on a modified source, diff the graph, review only what changed
     - 144 amendment records + AmendmentEvent model are the foundation; the diff is the missing piece
-    effort: 2 weeks
+    gates:
+    - M1
+    - M2
+    human_effort: 2 weeks
+    agent_effort: unmeasured
+    human_gate: none
+    promotes:
+    - from: proposed/MAINT/GATES-MAINT.md
+      to: gates/GATES-MAINT.md
     note: start during C/E, not after FRULES; the next amendment lands regardless
   ENFORCE:
     title: Claude Code enforcement layer — hooks, settings, skills, agent specs, MCP
     status: done
+    promotes:
+    - from: proposed/ENFORCE/check42_produces.py
+      to: harden/checks/check42_produces.py
+    - from: proposed/ENFORCE/checks.yaml
+      to: ci/checks.yaml
     depends_on:
     - A2
     produces:

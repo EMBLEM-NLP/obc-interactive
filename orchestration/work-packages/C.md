@@ -1,6 +1,6 @@
 # Work package — C: Identity and portability
 
-**Status in DAG:** `ready`  ·  **Effort:** 1 week
+**Status in DAG:** `ready`  ·  **Human effort (typed):** 1 week  ·  **Agent effort:** unmeasured  ·  **Human gate:** DEC2 — external exposure sets C1 urgency and RO-Crate depth
 **Depends on:** PORT  ·  **Unblocks:** (nothing downstream)
 **May run in parallel with:** A2, A4, E — on a separate copy of the tree; serialise on shared files.
 
@@ -9,6 +9,14 @@
 - `schema/identifiers.md`
 - `retrieval/lib/eli.py`
 - `query/duckpgq/ or query/age/`
+
+## Staged, then promoted by a human (PROTOCOL step 4a, R13)
+
+You write the left column. You may not write the right column — `.claude/settings.json`, `protect-checks.sh` and `guard-machinery.sh` all refuse it, and gate E2 catches it however it is produced.
+
+| you write | a human installs at |
+|---|---|
+| `proposed/C/GATES-C.md` | `gates/GATES-C.md` |
 
 ## Items
 
@@ -28,6 +36,9 @@ Every gate that reports a ratio needs a mutation in `check35_controls.py` that d
 - [ ] 2 BUILD     in a copy of the tree, never in the bag
 - [ ] 3 MUTATE    every ratio gate registered in harden/checks/check35_controls.py; check35 PASS
 - [ ] 4 INTEGRATE real paths, orchestration wired, superseded files moved not deleted
+- [ ] 4a PROMOTE  every protected output STAGED at proposed/C/<basename> and declared
+                  under `promotes:` in tracks.yaml — never written at its real path (R13);
+                  flat per track, never proposed/harden/checks/... (R14)
 - [ ] 5 RE-BAG    bash ci/regenerate.sh; rebuild; provenance regenerated
 - [ ] 6 VERIFY    python3 ci/run_gates.py from a CLEAN bag — every touched gate PASS, corpus mode
 - [ ] 7 AUDIT     addendum: what moved, what did not, what broke, what was FOUND

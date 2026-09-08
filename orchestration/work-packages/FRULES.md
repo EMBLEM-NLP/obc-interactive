@@ -30,7 +30,8 @@ Do not resolve these by assumption. A track that guesses a decision produces con
 
 ## Completion checklist (PROTOCOL.md — none optional)
 
-- [ ] 1 DECLARE   gates written to gates/GATES-FRULES.md before code
+- [ ] 1 DECLARE   gates written to proposed/FRULES/GATES-FRULES.md before code — STAGED,
+                  because gates/ is refused to every executor (R13). A human promotes it.
 - [ ] 2 BUILD     in a copy of the tree, never in the bag
 - [ ] 3 MUTATE    every ratio gate registered in harden/checks/check35_controls.py; check35 PASS
 - [ ] 4 INTEGRATE real paths, orchestration wired, superseded files moved not deleted

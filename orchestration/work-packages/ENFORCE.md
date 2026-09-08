@@ -39,7 +39,8 @@ AUDIT-rev5.md; 16/16 hook cases correct incl. fail-closed on garbage input; gate
 
 ## Completion checklist (PROTOCOL.md — none optional)
 
-- [ ] 1 DECLARE   gates written to gates/GATES-ENFORCE.md before code
+- [ ] 1 DECLARE   gates written to proposed/ENFORCE/GATES-ENFORCE.md before code — STAGED,
+                  because gates/ is refused to every executor (R13). A human promotes it.
 - [ ] 2 BUILD     in a copy of the tree, never in the bag
 - [ ] 3 MUTATE    every ratio gate registered in harden/checks/check35_controls.py; check35 PASS
 - [ ] 4 INTEGRATE real paths, orchestration wired, superseded files moved not deleted

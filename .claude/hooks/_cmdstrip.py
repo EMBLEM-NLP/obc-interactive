@@ -27,6 +27,7 @@ whether the verb appears in COMMAND POSITION:
   5. anything that cannot be lexed or nests too deep returns COMMIT, because a
      guard that cannot read its input must refuse
 """
+import os
 import re
 import shlex
 import sys
@@ -148,9 +149,105 @@ def has_commit(cmd, depth=0):
     return False
 
 
+# --------------------------------------------------------------------------
+# write-target detection (--writes)
+#
+# Which paths would this command MODIFY? Used by guard-machinery.sh to keep
+# Bash from reaching the check directories, which neither the settings.json
+# deny list nor protect-checks.sh covers - both are registered on the editing
+# tools only (AUDIT-rev7.md, finding 4).
+#
+# This is deliberately a best-effort list. `python3 -c "open(p,\'w\')"` writes a
+# file and no static reading of the command string can know it. That is why the
+# real guarantee is check41_machinery.py, which compares the tree against HEAD
+# and therefore sees the effect however it was produced. This function exists to
+# catch the ordinary cases early and say so clearly, not to be complete.
+# --------------------------------------------------------------------------
+
+REDIRECTS = {">", ">>", "1>", "2>", "&>", ">|"}
+READ_REDIRECTS = {"<", "<<<", "0<"}
+# command -> which arguments it writes
+ALL_ARGS = {"tee", "rm", "unlink", "shred", "truncate", "patch", "chmod", "chown",
+            "touch", "split", "ed"}
+LAST_ARG = {"cp", "mv", "install", "rsync", "ln"}
+GIT_WRITING = {"checkout", "restore", "apply", "stash", "clean", "reset", "mv", "rm"}
+
+
+def _plain(args):
+    return [a for a in args if not a.startswith("-")]
+
+
+def write_targets(cmd, depth=0):
+    """Paths this command plausibly modifies. Best effort, never complete."""
+    out = []
+    if depth > 3:
+        return out
+    for seg in segments(strip_heredocs(cmd)):
+        if not seg:
+            continue
+        # Collect redirection targets, then remove every redirection operator and
+        # its operand before reading the command's own arguments - otherwise
+        # `tee f < g` reported g as written, which it is not.
+        clean, skip = [], False
+        for i, tok in enumerate(seg):
+            if skip:
+                skip = False
+                continue
+            if tok in REDIRECTS and i + 1 < len(seg):
+                out.append(seg[i + 1])
+                skip = True
+                continue
+            if tok in READ_REDIRECTS and i + 1 < len(seg):
+                skip = True
+                continue
+            if tok.startswith("of=") and len(tok) > 3:      # dd
+                out.append(tok[3:])
+                continue
+            clean.append(tok)
+        seg = clean
+        if not seg:
+            continue
+        j = 0
+        while j < len(seg) and "=" in seg[j] and not seg[j].startswith("-"):
+            j += 1
+        head = seg[j:]
+        if not head:
+            continue
+        name, args = os.path.basename(head[0]), head[1:]
+        if name in ALL_ARGS:
+            out += _plain(args)
+        elif name in LAST_ARG:
+            p = _plain(args)
+            if p:
+                out.append(p[-1])
+        elif name in ("sed", "perl", "gawk", "awk"):
+            if any(a == "-i" or a.startswith("-i") or a == "--in-place" for a in args):
+                out += _plain(args)[1:] if name in ("sed", "perl") else _plain(args)
+        elif name == "git":
+            sub = next((a for a in args if not a.startswith("-")), None)
+            if sub in GIT_WRITING:
+                out += [a for a in _plain(args) if a != sub]
+        elif name in SHELLS and "-c" in head:
+            k = head.index("-c")
+            if k + 1 < len(head):
+                out += write_targets(head[k + 1], depth + 1)
+    seen, uniq = set(), []
+    for p in out:
+        if p and p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq
+
+
 def main():
     try:
-        print("COMMIT" if has_commit(sys.stdin.read()) else "NONE")
+        mode = sys.argv[1] if len(sys.argv) > 1 else "--commit"
+        text = sys.stdin.read()
+        if mode == "--writes":
+            for p in write_targets(text):
+                print(p)
+        else:
+            print("COMMIT" if has_commit(text) else "NONE")
     except Exception as e:                       # noqa: BLE001
         print(f"_cmdstrip failed: {type(e).__name__}", file=sys.stderr)
         sys.exit(1)

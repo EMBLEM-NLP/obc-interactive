@@ -26,6 +26,8 @@ hooks:
       hooks:
         - type: command
           command: bash "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-commit-and-corpus.sh"
+        - type: command
+          command: bash "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-machinery.sh"
 ---
 You execute ONE track of the OBC document-graph pipeline. The track id is in your prompt.
 

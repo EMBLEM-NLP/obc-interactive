@@ -65,6 +65,24 @@ t "Edit: result is unparseable yaml"  2 $H/decision-guard.sh "$(ej "$TY" "tracks
 t "Edit: mark A4 done (allowed)"      0 $H/decision-guard.sh "$(ej "$TY" "$A4_OLD" "$A4_NEW")"
 t "Edit: a different file (allowed)"  0 $H/decision-guard.sh "$(ej README.md a b)"
 
+echo "=== guard-machinery (Bash writes to verification machinery) ==="
+# The deny list and protect-checks.sh are registered on Edit|Write|MultiEdit
+# only. These are the routes that reach the checks through Bash instead.
+t "sed -i a check"                    2 $H/guard-machinery.sh "$(bj "sed -i 's/x/y/' harden/checks/check35_controls.py")"
+t "redirect into harden/checks"       2 $H/guard-machinery.sh "$(bj 'cat > harden/checks/evil.py')"
+t "append to ci/checks.yaml"          2 $H/guard-machinery.sh "$(bj 'echo x >> ci/checks.yaml')"
+t "chmod -x a hook"                   2 $H/guard-machinery.sh "$(bj 'chmod -x .claude/hooks/gate-complete.sh')"
+t "delete a hook helper"              2 $H/guard-machinery.sh "$(bj 'rm .claude/hooks/_cmdstrip.py')"
+t "overwrite settings.json"           2 $H/guard-machinery.sh "$(bj 'cp /tmp/x .claude/settings.json')"
+t "git checkout a check"              2 $H/guard-machinery.sh "$(bj 'git checkout -- harden/checks/check23_controls.py')"
+t "write a check via bash -c"         2 $H/guard-machinery.sh "$(bj "bash -c 'sed -i s/a/b/ ci/run_gates.py'")"
+t "overwrite a gate ledger"           2 $H/guard-machinery.sh "$(bj 'mv /tmp/a gates/GATES-retrieval.md')"
+t "CI1 seeds its own check (allowed)" 0 $H/guard-machinery.sh "$(bj 'python3 ci/run_gates.py --control')"
+t "read a check (allowed)"            0 $H/guard-machinery.sh "$(bj 'cat harden/checks/check35_controls.py')"
+t "grep the checks (allowed)"         0 $H/guard-machinery.sh "$(bj 'grep -rn RESULT harden/checks/')"
+t "edit a stage (allowed)"            0 $H/guard-machinery.sh "$(bj "sed -i 's/a/b/' retrieval/stage18_definitions.py")"
+t "write outside the tree (allowed)"  0 $H/guard-machinery.sh "$(bj 'echo hi > /tmp/scratch.txt')"
+
 echo "=== decision-guard: whole-file Write shapes ==="
 t "Write: flip FRULES to ready"       2 $H/decision-guard.sh "$(mk "d['tracks']['FRULES']['status']='ready'")"
 t "Write: delete DEC1"                2 $H/decision-guard.sh "$(mk "d['decisions_pending']=[x for x in d['decisions_pending'] if x['id']!='DEC1']")"
@@ -72,14 +90,24 @@ t "Write: mark A4 done (allowed)"     0 $H/decision-guard.sh "$(mk "d['tracks'][
 rm -f .regen.stamp
 
 echo "=== fail-closed ==="
-for h in protect-checks guard-commit-and-corpus decision-guard; do echo "not json" | bash $H/$h.sh 2>/dev/null; rc=$?; [ "$rc" = 2 ] && v="ok  " || { v="FAIL"; FAILS=$((FAILS+1)); }; printf "  %s  %-46s exit %s (want 2)\n" "$v" "garbage stdin -> $h" "$rc"; done
+for h in protect-checks guard-commit-and-corpus decision-guard guard-machinery; do echo "not json" | bash $H/$h.sh 2>/dev/null; rc=$?; [ "$rc" = 2 ] && v="ok  " || { v="FAIL"; FAILS=$((FAILS+1)); }; printf "  %s  %-46s exit %s (want 2)\n" "$v" "garbage stdin -> $h" "$rc"; done
 # The helper is not optional: without it a commit cannot be told from a mention
 # of one, and the guard must refuse rather than guess.
-mv $H/_cmdstrip.py $H/_cmdstrip.py.off 2>/dev/null
+PARK=$(mktemp -d)
+mv $H/_cmdstrip.py "$PARK/" 2>/dev/null
 echo "$(bj 'git commit -m x')" | bash $H/guard-commit-and-corpus.sh >/dev/null 2>&1; rc=$?
-mv $H/_cmdstrip.py.off $H/_cmdstrip.py 2>/dev/null
+echo "$(bj 'sed -i s/a/b/ harden/checks/check35_controls.py')" | bash $H/guard-machinery.sh >/dev/null 2>&1; rc2=$?
+mv "$PARK/_cmdstrip.py" $H/ 2>/dev/null
 [ "$rc" = 2 ] && v="ok  " || { v="FAIL"; FAILS=$((FAILS+1)); }
 printf "  %s  %-46s exit %s (want 2)\n" "$v" "_cmdstrip.py missing -> guard-commit" "$rc"
+[ "$rc2" = 2 ] && v="ok  " || { v="FAIL"; FAILS=$((FAILS+1)); }
+printf "  %s  %-46s exit %s (want 2)\n" "$v" "_cmdstrip.py missing -> guard-machinery" "$rc2"
+mv harden/checks/check41_machinery.py "$PARK/" 2>/dev/null
+echo "$(bj 'sed -i s/a/b/ harden/checks/check35_controls.py')" | bash $H/guard-machinery.sh >/dev/null 2>&1; rc=$?
+mv "$PARK/check41_machinery.py" harden/checks/ 2>/dev/null
+rmdir "$PARK" 2>/dev/null
+[ "$rc" = 2 ] && v="ok  " || { v="FAIL"; FAILS=$((FAILS+1)); }
+printf "  %s  %-46s exit %s (want 2)\n" "$v" "check41 missing -> guard-machinery" "$rc"
 
 echo "RESULT: $([ $FAILS = 0 ] && echo PASS || echo "FAIL $FAILS hook case(s)")"
 exit $FAILS

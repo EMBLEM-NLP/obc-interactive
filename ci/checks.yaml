@@ -112,6 +112,15 @@ checks:
 
   # ---- enforcement ----
   - {script: ci/test_hooks.sh, scope: ., gate: E1, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
+  - script: harden/checks/check41_machinery.py
+    scope: harden
+    gate: E2
+    note: >-
+      Verification machinery matches HEAD. The settings.json deny list and
+      protect-checks.sh are registered on Edit/Write/MultiEdit only, so a Bash
+      write reaches the checks unseen; this is what catches it. The baseline is
+      git rather than MANIFEST.sha256, which cannot be regenerated without the
+      derived data and is stale on any data-less clone.
 
   # ---- retrieval ----
   - {script: retrieval/checks/check29_definitions.py, scope: retrieval, args: [--db, ../emitters/obc-mod.sqlite], gate: D1}

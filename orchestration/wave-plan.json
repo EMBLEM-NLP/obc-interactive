@@ -72,6 +72,10 @@
             {
               "from": "proposed/E/check22_docs.py",
               "to": "harden/checks/check22_docs.py"
+            },
+            {
+              "from": "proposed/E/rebuild-data.yml",
+              "to": ".github/workflows/rebuild-data.yml"
             }
           ],
           "serialises_on": [

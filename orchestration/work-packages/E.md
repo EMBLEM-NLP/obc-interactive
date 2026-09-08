@@ -14,6 +14,7 @@ You write the left column. You may not write the right column — `.claude/setti
 | `proposed/E/check44_distribution.py` | `harden/checks/check44_distribution.py` |
 | `proposed/E/check47_gateids.py` | `harden/checks/check47_gateids.py` |
 | `proposed/E/check22_docs.py` | `harden/checks/check22_docs.py` |
+| `proposed/E/rebuild-data.yml` | `.github/workflows/rebuild-data.yml` |
 
 ## Serialises on
 
@@ -32,6 +33,7 @@ Another track writes these too. `dispatch.py` will not place two tracks sharing 
 - **E7** — check22_docs scope -> reports/*.md; reconcile ROADMAP.md, GATED_STATUS.md
 - **E8** — check8_build needs the v9 baseline PDF — ship it or retire the check
 - **E9** — README describes the packaged bag, not the git checkout, and never says which — split README.md (source front page, how to hydrate) from PACKAGE.md (everything gen_readme.py measures at package time); gate the hydration pointer and the obtainability of the data as DOC1
+- **E11** — the data is claimed regenerable and nothing ever tested it. ci/rebuild_all.sh composes the full sequence, which existed nowhere - pipeline/run.sh is stages 0-5 only, and vol2/ and emitters/ have no entry point at all. Its preflight finds three vol2 stages hard-wiring a build-machine path with no argv or env override, so a full rebuild cannot complete in any clone. Staged workflow rebuild-data.yml runs it from the source secrets and compares every file against its recorded sha256. Two blockers found: three vol2 stages hard-wire a build-machine path, and NO committed code places stage outputs at their shipped paths or encrypts a PDF - the only encryption in the tree is PDF_ENCRYPT_NONE, so the two *_protected.pdf files cannot be produced here at all.
 - **E10** — 10 gate ids name one thing in their ledger and another in ci/checks.yaml — E1, E2, G7, G9, H6, H7, H9, V1, V4, V5. The board prints a colour beside a gate whose ledger describes something the executed check never measured. A further 10 ids are both a track item and a gate — E1-E5 and G1-G4 and D1 — and tracks D, E and G are themselves gate-id prefixes. Gates GID1 and GID2 detect both; resolving which file is right needs the derived data and the evidence digests, so the check reports and refuses to guess
 
 ## Gates to declare

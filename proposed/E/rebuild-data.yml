@@ -1,0 +1,132 @@
+# STAGED for .github/workflows/rebuild-data.yml — not installed.
+# PROTOCOL step 4a PROMOTE: .github/workflows/* is in check41's PROTECTED set,
+# so no executor may write it (R13). A human installs this after review.
+#
+# Rebuild the 338 MB of derived data from the two Crown-copyright source PDFs,
+# and upload it as an artifact. Then the data is something a hosted run PRODUCES
+# from two public documents, rather than something a person has to keep and host.
+#
+# UNEXECUTED. It has never run, and could not be: this container has no pipeline
+# dependencies and guard-source refuses the agent the source PDFs by design. A2's
+# executor note is the precedent and applies here word for word — "the runner is
+# verified; the trigger is not. Do not call CI live until a hosted run is green."
+# The plausible failure is the embed stage against a runner's limits, which no
+# amount of local care would reveal.
+name: rebuild-data
+
+# workflow_dispatch ONLY. Never on: push — this is a long job and every commit
+# triggering a full pipeline rebuild would be indefensible.
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "Phase to start at: v1, vol2, emitters, retrieval"
+        default: v1
+        required: false
+
+permissions: { contents: read }
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      # Job-level env MAY read secrets; a step-level `if:` may NOT — referencing
+      # `secrets` there is a parse-time rejection of the whole workflow, not a
+      # false-y evaluation. This is the pattern gates.yml run 15 confirmed works.
+      HAS_SRC: ${{ secrets.OBC_PDF_URL_V1 != '' && secrets.OBC_PDF_URL_V2 != '' }}
+      SOURCE_DATE_EPOCH: "1737072000"
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      # Runs unconditionally and needs no secrets: it reports whether a rebuild
+      # COULD work here, including the three Volume 2 stages that hard-wire a
+      # build-machine path. Cheap, and it fails before an hour is spent.
+      - name: preflight (expected to fail until the vol2 paths are fixed)
+        continue-on-error: true
+        run: bash ci/rebuild_all.sh --preflight
+
+      - name: note when no source secret is configured
+        if: ${{ env.HAS_SRC != 'true' }}
+        run: |
+          echo "::warning title=No source URLs::OBC_PDF_URL_V1/V2 are unset, so there is nothing to rebuild from."
+          {
+            echo "### Rebuild skipped"
+            echo
+            echo "\`OBC_PDF_URL_V1\` and \`OBC_PDF_URL_V2\` are not configured, so the two"
+            echo "Crown-copyright source documents could not be fetched and no rebuild was attempted."
+            echo "The preflight above still reports whether this checkout *could* rebuild."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: dependencies (CPU-only torch — the CUDA wheel is ~2.5 GB and unused)
+        if: ${{ env.HAS_SRC == 'true' }}
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: cache model weights
+        if: ${{ env.HAS_SRC == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('requirements.txt') }}
+
+      # The URLs live in secrets and nowhere else. fetch_sources.sh verifies each
+      # download against the sha256 in ci/checks.yaml and refuses to continue on a
+      # mismatch, so a rebuild can never run over an unverified source.
+      - name: fetch the source documents (URLs never leave secrets)
+        if: ${{ env.HAS_SRC == 'true' }}
+        env:
+          OBC_PDF_URL_V1: ${{ secrets.OBC_PDF_URL_V1 }}
+          OBC_PDF_URL_V2: ${{ secrets.OBC_PDF_URL_V2 }}
+        run: bash ci/fetch_sources.sh
+
+      - name: rebuild
+        if: ${{ env.HAS_SRC == 'true' }}
+        run: bash ci/rebuild_all.sh --from ${{ inputs.from }}
+
+      # data-manifest.json carries a sha256 for every one of the 29 files, so a
+      # deterministic pipeline should reproduce them byte for byte. This is the
+      # first test that claim has ever had against an independently rebuilt tree.
+      # A mismatch is a FINDING about determinism to record, never a reason to
+      # regenerate the manifest — that would be the circularity the manifest's own
+      # note exists to prevent.
+      - name: compare every rebuilt file against its recorded digest
+        if: ${{ env.HAS_SRC == 'true' }}
+        continue-on-error: true
+        run: |
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import hashlib, json, os
+          files = json.load(open("data-manifest.json"))["files"]
+          same = miss = diff = 0
+          print("| file | recorded | rebuilt |")
+          print("|---|---|---|")
+          for f in files:
+              p = f["path"]
+              if not os.path.exists(p):
+                  print(f"| `{p}` | `{f['sha256'][:12]}` | **absent** |"); miss += 1; continue
+              h = hashlib.sha256(open(p, "rb").read()).hexdigest()
+              if h == f["sha256"]:
+                  same += 1
+              else:
+                  print(f"| `{p}` | `{f['sha256'][:12]}` | `{h[:12]}` |"); diff += 1
+          print(f"\n**{same} identical, {diff} differ, {miss} absent** of {len(files)}.")
+          PY
+
+      - name: upload the rebuilt data
+        if: ${{ env.HAS_SRC == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: obc-interactive-data
+          retention-days: 30
+          # A missing archive must not read as a delivered one.
+          if-no-files-found: error
+          path: |
+            emitters/
+            model/
+            pdf/
+            verify/data/

@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash, mcp__obc__*
 disallowedTools: Edit, Write, MultiEdit, NotebookEdit, WebFetch, WebSearch
 model: inherit
 permissionMode: default
-maxTurns: 30
+maxTurns: 80
 isolation: worktree
 skills: [obc-seven-step-cycle]
 hooks:
@@ -35,6 +35,29 @@ hooks:
         - type: command
           command: bash "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-verify-readonly.sh"
 ---
+
+## PREFLIGHT — run this before anything else
+
+```
+git merge-base --is-ancestor <BASE_COMMIT_FROM_YOUR_PROMPT> HEAD || echo STALE-BASE
+```
+
+If it prints `STALE-BASE`, **stop and report it. Do not proceed.** Your worktree
+predates the plan you were dispatched under, and the machinery your instructions
+name may not exist in it.
+
+This is not hypothetical. On 2026-09-08 both agents of wave 1 were placed on the
+repository's default branch rather than the working branch, and were briefed to
+use `orchestration/dispatch.py`, gate E3 (`check42_produces.py`) and PROTOCOL
+R13/R14/step 4a — **none of which existed in the tree they were given** (grep
+count 0). One of them staged correctly anyway, from the prompt rather than the
+tree, and reported running a check that was not there. That is worse than
+failing, because it reads as though the conventions were enforced.
+
+`python3 orchestration/dispatch.py --preflight` prints the line with the commit
+filled in. If your prompt carries no base commit, say so and stop — a dispatch
+without one cannot be checked.
+
 You verify; you do not fix.
 
 What actually constrains you — stated as mechanism, because the previous version

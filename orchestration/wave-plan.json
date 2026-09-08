@@ -1,5 +1,6 @@
 {
   "generated_from": "orchestration/tracks.yaml",
+  "base_commit": "279f70189e570a6d1bd3653ca2730e0d0fc00eb3",
   "dispatchable_wave": 1,
   "note": "Waves after 1 are speculative: they assume the previous wave completes. One human review gate per wave boundary.",
   "waves": [
@@ -50,12 +51,21 @@
             "T2",
             "T3",
             "T4",
-            "T5"
+            "T5",
+            "DOC1"
           ],
           "promotes": [
             {
               "from": "proposed/E/GATES-E.md",
               "to": "gates/GATES-E.md"
+            },
+            {
+              "from": "proposed/E/check44_distribution.py",
+              "to": "harden/checks/check44_distribution.py"
+            },
+            {
+              "from": "proposed/E/check22_docs.py",
+              "to": "harden/checks/check22_docs.py"
             }
           ],
           "serialises_on": [
@@ -80,6 +90,15 @@
             {
               "from": "proposed/MAINT/GATES-MAINT.md",
               "to": "gates/GATES-MAINT.md"
+            },
+            {
+              "from": "proposed/MAINT/check45_diff.py",
+              "to": "harden/checks/check45_diff.py"
+            },
+            {
+              "from": "proposed/MAINT/check35_MAINT_control.py",
+              "to": "harden/checks/check35_controls.py",
+              "note": "MERGE, not replace. Two mutation functions and two SUBPROCESS_CONTROLS rows, plus a `maint` scope branch in run_subprocess_controls(). The exact edit is printed by `python3 proposed/MAINT/check35_MAINT_control.py --promotion`."
             }
           ],
           "serialises_on": [],

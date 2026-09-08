@@ -14,3 +14,19 @@ checks:
       there first — all denied to every executor, so four ready tracks could not
       take step 1. Nothing compared the DAG against PROTECTED until this gate.
       Reads the same list check41 owns; a fourth consumer, not a fifth copy.
+  - script: harden/checks/check46_dagschema.py
+    scope: .
+    gate: DAG1
+    no_data: true
+    note: >-
+      tracks.yaml still has the shape the orchestration needs. It is deliberately
+      NOT in check41's PROTECTED set - every track updates its own status there -
+      which leaves the file carrying the whole dependency graph as the one piece
+      of orchestration nothing guarded. On 2026-09-08 isolation: worktree branched
+      both wave-1 agents from the default branch, so each held a pre-9380139
+      tracks.yaml; merging either would have reverted human_effort, agent_effort,
+      human_gate, serialises_on and every promotes block for all fifteen tracks
+      through a clean merge, with check41 reporting PASS throughout and correctly.
+      Deliberately duplicates schedule.py --check rather than importing it: a stale
+      merge reverts the checker and the checked in one commit, so the detector has
+      to live somewhere the merge cannot reach.

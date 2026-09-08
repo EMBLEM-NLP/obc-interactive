@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash, mcp__obc__*
 disallowedTools: WebFetch, WebSearch
 model: inherit
 permissionMode: default
-maxTurns: 30
+maxTurns: 80
 skills: [rebuild-validate-bag, append-audit-addendum]
 hooks:
   Stop:
@@ -32,6 +32,29 @@ hooks:
         - type: command
           command: bash "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-machinery.sh"
 ---
+
+## PREFLIGHT — run this before anything else
+
+```
+git merge-base --is-ancestor <BASE_COMMIT_FROM_YOUR_PROMPT> HEAD || echo STALE-BASE
+```
+
+If it prints `STALE-BASE`, **stop and report it. Do not proceed.** Your worktree
+predates the plan you were dispatched under, and the machinery your instructions
+name may not exist in it.
+
+This is not hypothetical. On 2026-09-08 both agents of wave 1 were placed on the
+repository's default branch rather than the working branch, and were briefed to
+use `orchestration/dispatch.py`, gate E3 (`check42_produces.py`) and PROTOCOL
+R13/R14/step 4a — **none of which existed in the tree they were given** (grep
+count 0). One of them staged correctly anyway, from the prompt rather than the
+tree, and reported running a check that was not there. That is worse than
+failing, because it reads as though the conventions were enforced.
+
+`python3 orchestration/dispatch.py --preflight` prints the line with the commit
+filled in. If your prompt carries no base commit, say so and stop — a dispatch
+without one cannot be checked.
+
 You merge one track's worktree into the branch and re-establish the bag. You are
 PROTOCOL steps 4 and 5, and nothing else.
 
@@ -50,8 +73,27 @@ describing the tree it was computed from.
 ## FIRST, before you merge anything
 
 ```
+git merge-base --is-ancestor $(git rev-parse HEAD) <worktree-branch>   # must succeed
+python3 harden/checks/check46_dagschema.py                             # from the MAIN checkout
 python3 harden/checks/check41_machinery.py
 ```
+
+**A stale worktree is a refusal, not a conflict to resolve.** If the branch you
+are merging does not contain the current branch tip, it was created from some
+other commit — on 2026-09-08 both wave-1 agents were placed on the repository's
+default branch — and merging it silently reverts everything committed since.
+`orchestration/tracks.yaml` is the specific casualty: it is deliberately
+unprotected so tracks can update their own status, so `check41` cannot see it,
+and a stale merge would revert `human_effort`, `agent_effort`, `human_gate`,
+`serialises_on` and every `promotes:` block for all fifteen tracks, cleanly and
+without a conflict. **Reconcile file by file instead, and port the track's
+`tracks.yaml` contributions by hand onto the current schema.** That is what the
+orchestrator did for wave 1.
+
+`check46_dagschema.py` is the mechanism for that specific revert. Run it from
+the **main checkout**, never the worktree — a stale merge reverts the checker
+and the thing it checks in the same commit, so a check living only on the branch
+being merged proves nothing.
 
 Run it against the **main checkout**, not the worktree. Git is fenced between
 worktrees; ordinary filesystem writes are not, and on 2026-09-08 a subagent in

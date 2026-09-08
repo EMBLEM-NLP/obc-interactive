@@ -414,6 +414,8 @@ tracks:
       to: ci/checks.yaml
     - from: proposed/ENFORCE/guard-commit-and-corpus.sh.patch
       to: .claude/hooks/guard-commit-and-corpus.sh
+    - from: proposed/ENFORCE/check46_dagschema.py
+      to: harden/checks/check46_dagschema.py
     depends_on:
     - A2
     produces:

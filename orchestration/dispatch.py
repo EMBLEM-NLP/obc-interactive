@@ -45,6 +45,7 @@ import argparse
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -68,6 +69,15 @@ def _agent_for(tid, t):
     if tid == "B":
         return "build-track", ["embed-track", "integrate-track", "verify-track"]
     return "build-track", ["integrate-track", "verify-track"]
+
+
+def head_commit():
+    """The commit a plan is planned against. A wave dispatched from a worktree
+    branched elsewhere is executing against a tree that does not contain the
+    machinery the plan names - see proposed/ENFORCE/worktree-base.md, where both
+    agents of wave 1 landed on the default branch instead of this one."""
+    r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PKG, capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
 
 
 def plan(tracks_path=None):
@@ -147,6 +157,7 @@ def plan(tracks_path=None):
 
     return {
         "generated_from": "orchestration/tracks.yaml",
+        "base_commit": head_commit(),
         "dispatchable_wave": 1,
         "note": "Waves after 1 are speculative: they assume the previous wave completes. "
                 "One human review gate per wave boundary.",
@@ -202,6 +213,21 @@ def check(p, tracks_path=None):
                     errs.append(f"wave {w['wave']}: {e['track']} and {seen[f]} both write {f}")
                 seen[f] = e["track"]
 
+    # A recorded plan names the commit it was planned against. If HEAD has moved,
+    # the plan describes a tree that no longer exists and any agent dispatched
+    # from it is executing against different machinery.
+    if os.path.exists(OUT):
+        try:
+            recorded = json.load(open(OUT)).get("base_commit", "")
+        except (ValueError, OSError):
+            recorded = ""
+        now = head_commit()
+        if recorded and now and recorded != now:
+            errs.append(f"wave-plan.json was planned against {recorded[:8]} but HEAD is {now[:8]}; "
+                        f"re-run --plan before dispatching")
+        elif not recorded:
+            errs.append("wave-plan.json records no base_commit; re-run --plan")
+
     every = {e["track"] for w in p["waves"] for e in w["tracks"]}
     for tid, t in tracks.items():
         if t.get("status") != "done" and tid not in every:
@@ -248,7 +274,18 @@ def main():
     ap.add_argument("--plan", action="store_true", help="write orchestration/wave-plan.json")
     ap.add_argument("--check", action="store_true", help="exit 1 if the plan contradicts schedule.py")
     ap.add_argument("--promote", metavar="TRACK", help="print the promote commands for a track")
+    ap.add_argument("--preflight", action="store_true", help="print the base-commit assertion for a dispatch prompt")
     a = ap.parse_args()
+
+    if a.preflight:
+        base = head_commit()
+        print(f"# Paste into every dispatch prompt for this wave, and require the agent to run it FIRST:")
+        print(f"#   git merge-base --is-ancestor {base} HEAD || echo STALE-BASE")
+        print(f"# base commit: {base}")
+        print(f"# If it prints STALE-BASE the agent's worktree predates this plan. It must stop and")
+        print(f"# report, not proceed: wave 1 had two agents briefed to use dispatch.py, check42 and")
+        print(f"# PROTOCOL R13/R14, none of which existed in the tree they were given.")
+        return
 
     if a.promote:
         sys.exit(promote(a.promote, a.file))

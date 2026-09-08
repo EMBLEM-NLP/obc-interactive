@@ -31,7 +31,7 @@ Every track is unchanged. A1, A2, A3, PORT, ENFORCE, G surface, G2 done; A4, C, 
 - The gate board did not run. `ci/run_gates.py` still aborts at DATA1 with 29 files missing. No gate that reads the graph has been exercised here, so nothing in this document rests on one.
 - `protect-checks` is **still unobserved firing under the host**. Editing a check is refused by the `Edit(harden/checks/**)` deny in `settings.json`, which is evaluated before PreToolUse hooks, so the hook never runs. Two layers, and only the outer one has been seen to act.
 - The step-5 sequence in `BOOTSTRAP.md` is still not complete: no board, no `@build-track` dispatch, no `SubagentStop` observation.
-- CI is still red. Runs 1 and 2 both died at the data fetch with `OBC_DATA_URL` unset. Run 3 will exercise the reordered workflow, and E1 should now produce a result before the fetch — that is a prediction, not a result, until it runs.
+- CI is still red, and will stay red until the data secret exists. Runs 1 and 2 both died at the data fetch with `OBC_DATA_URL` unset, having produced no gate result at all.
 - `MANIFEST.sha256` is stale by 16 files and now by this one too. `ci/regenerate.sh` needs the data and refuses without it, so G16d and H8 stay red until someone runs it where the data lives.
 - No data published, no secrets set, no `main` branch, no PR. All of those remain the user's.
 
@@ -80,7 +80,17 @@ So the guard refused a legitimate action and permitted two real ones. The obviou
 The deny list covers `Edit(...)` and `Write(...)` on the check directories, but `Bash` is not denied. Any of `sed -i`, `python3 -c`, `cat >` or a heredoc can write to `harden/checks/` without either the deny list or `protect-checks` seeing it — the hook is registered on `Edit|Write|MultiEdit` only. I used exactly that route to write the hook files in this session, with explicit human authorization, which is the point: the route exists and is not instrumented. `guard-commit` inspects Bash commands already, so the natural home for a fix is there. **This is now the widest known fail-open in the enforcement layer and it is not closed.** Not fixed here because a Bash write guard needs its own controls and its own review, and shipping it untested is how the last two fail-opens arrived.
 
 ### 5. Two CI runs produced no gate result when one was free
-`gates.yml` ran the hook test after the data fetch, so both runs skipped E1 — a gate that needs no data and would have passed. Reordered. The artifact upload also reported success while logging "No files were found", because `if-no-files-found` defaults to `warn`; a missing board read as a delivered one. Now `error`. Trade-off accepted and stated: a run that dies early will now show two red steps rather than one, which is louder and more accurate.
+`gates.yml` ran the hook test after the data fetch, so runs 1 and 2 skipped E1 — a gate that needs no data and would have passed. The artifact upload also reported success while logging "No files were found", because `if-no-files-found` defaults to `warn`; a missing board read as a delivered one.
+
+Both reordered, and **verified on run 3** (id 34238480779, head `26c04a6`), not left as a prediction:
+
+| step | run 1 and 2 | run 3 |
+|---|---|---|
+| `hooks are falsifiable` (E1) | skipped, after the fetch | **success in 4 s**, before the fetch |
+| `fetch derived data` | failure, secret unset | failure, secret unset |
+| `upload-artifact` | success, logging "No files were found" | **failure**, board genuinely absent |
+
+E1 passing on run 3 is the first gate result this project's CI has ever produced. The trade-off in the upload change is real and was accepted: a run that dies early now shows two red steps rather than one. That is louder, and it is accurate; the previous green was neither.
 
 ---
 

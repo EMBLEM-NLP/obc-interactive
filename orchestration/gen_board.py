@@ -106,7 +106,8 @@ def gate_defs():
                     chk = nxt.split("CHECK:", 1)[1].strip()
                     break
             out.setdefault(gid, {"mark": mark, "text": " ".join(text.split()),
-                                 "ledger": rel, "src": "ledger", "check": chk})
+                                 "ledger": rel, "src": "ledger", "check": chk,
+                                 "line": i + 1})
 
     # A ledger is not the only place a gate is written down. A2 states CI1 and
     # CI2 as single-key mappings in its exit_criteria, and the first version of
@@ -140,7 +141,7 @@ def gate_defs():
                         continue
                     out.setdefault(str(gid), {"mark": "?", "text": " ".join(str(text).split()),
                                               "ledger": f"tracks.yaml &rarr; {tid}.exit_criteria",
-                                              "src": "dag", "check": None})
+                                              "src": "dag", "check": None, "line": None})
     return out
 
 
@@ -184,8 +185,61 @@ def e(x):
     return html.escape(str(x), quote=True)
 
 
-def mono(x):
-    return f'<code>{e(x)}</code>'
+def remote_base():
+    """The repo's web root, derived from origin. Never typed.
+
+    Returns "" when there is no origin or the host is not one whose blob-URL
+    shape we know, and the page then emits no links at all. Guessing a URL
+    scheme would produce links that look authoritative and resolve nowhere,
+    which is worse than plain text - a link is a claim, and this project does
+    not make claims it cannot check.
+    """
+    url = git("remote", "get-url", "origin")
+    if not url:
+        return ""
+    m = re.match(r"^git@([^:]+):(.+?)(?:\.git)?$", url)
+    if m:
+        host, path = m.group(1), m.group(2)
+    else:
+        m = re.match(r"^https?://(?:[^@/]+@)?([^/]+)/(.+?)(?:\.git)?/?$", url)
+        if not m:
+            return ""
+        host, path = m.group(1), m.group(2)
+    if host not in ("github.com", "www.github.com"):
+        return ""
+    return f"https://github.com/{path}"
+
+
+def tracked_files():
+    out = git("ls-files")
+    return set(out.split("\n")) if out else set()
+
+
+LINKS = {"base": "", "sha": "", "files": set()}
+NO_LINKS = False
+PATHY = re.compile(r"^[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)+$")
+
+
+def mono(x, line=None):
+    """A monospace token. If it names a file this repository actually tracks at
+    the pinned commit, it becomes a link to that file.
+
+    The existence test is the point. 60 path-shaped strings appear on this
+    board; 31 are tracked and 29 are not - promote destinations no track has
+    written yet, and gitignored derived data. Linking those would 404, and would
+    make a file the project has not produced look like one it has. So the
+    absence of a link carries the same fact the promotion table states in words.
+    """
+    t = str(x)
+    if not LINKS["base"] or not PATHY.match(t):
+        return f"<code>{e(t)}</code>"
+    if t in LINKS["files"]:
+        frag = f"#L{line}" if line else ""
+        return (f'<a href="{e(LINKS["base"])}/blob/{e(LINKS["sha"])}/{e(t)}{frag}" '
+                f'target="_blank" rel="noopener"><code class=lnk>{e(t)}</code></a>')
+    return (f'<code class=ghost title="Not in the repository at this commit - a promote '
+            f'destination no track has written yet, or derived data that is not committed.">'
+            f'{e(t)}</code>')
 
 
 def dl(rows):
@@ -235,7 +289,7 @@ h3{font-size:17px;font-weight:600}
 section{margin-top:52px}
 code{font-family:var(--mono);font-size:.87em;background:var(--sunk);
   padding:.1em .38em;border-radius:3px;color:var(--ink);word-break:break-word}
-a{color:var(--accent)}\ncode.undef{color:var(--blocked);background:var(--blocked-bg);border:1px dashed currentColor}\ncode[title]{cursor:help}
+a{color:var(--accent)}\ncode.undef{color:var(--blocked);background:var(--blocked-bg);border:1px dashed currentColor}\ncode[title]{cursor:help}\na code.lnk{color:var(--accent);background:var(--accent-soft);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}\na:hover code.lnk{text-decoration-thickness:2px}\ncode.ghost{color:var(--muted);opacity:.85}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* masthead */
@@ -338,6 +392,13 @@ def build(tracks_path=None):
     src = "orchestration/tracks.yaml"
     sha = git("log", "-1", "--format=%H", "--", src)
     when = git("log", "-1", "--format=%cI", "--", src)
+    # Two commits, because they answer different questions. `sha` is what the
+    # board's CONTENT is a function of. Links resolve against HEAD instead:
+    # proposed/E/check47_gateids.py does not exist at `sha`, and a link into a
+    # commit predating the file it names is a 404 wearing a provenance stamp.
+    link_sha = git("rev-parse", "HEAD")
+    if not NO_LINKS:
+        LINKS["base"], LINKS["sha"], LINKS["files"] = remote_base(), link_sha, tracked_files()
     branch = git("rev-parse", "--abbrev-ref", "HEAD")
 
     counts = {s: sum(1 for k in T if derived[k][0] == s) for s in STATUS_ORDER}
@@ -358,7 +419,14 @@ def build(tracks_path=None):
 
     # ---- masthead ---------------------------------------------------------
     A("<header>")
-    A(f'<div class=eyebrow>obc-interactive &middot; {e(branch)} &middot; {e(sha[:8])}</div>')
+    repo = LINKS["base"]
+    if repo:
+        A(f'<div class=eyebrow><a href="{e(repo)}" target=_blank rel=noopener>obc-interactive</a>'
+          f' &middot; <a href="{e(repo)}/tree/{e(branch)}" target=_blank rel=noopener>{e(branch)}</a>'
+          f' &middot; <a href="{e(repo)}/commit/{e(link_sha)}" target=_blank rel=noopener>'
+          f'{e(link_sha[:8])}</a></div>')
+    else:
+        A(f'<div class=eyebrow>obc-interactive &middot; {e(branch)} &middot; {e(sha[:8])}</div>')
     A("<h1>Track board</h1>")
     A('<p class=sub>Every figure on this page is derived from '
       '<code>orchestration/tracks.yaml</code> by <code>gen_board.py</code>. '
@@ -422,7 +490,7 @@ def build(tracks_path=None):
     A("  classDef blocked fill:#f5eeda,stroke:#8a6a1f,color:#14181d;")
     A("  classDef conditional fill:#f6e6e6,stroke:#8a3d3d,color:#14181d;")
     A("</pre></section>")
-    return P, T, derived, decisions, gated, promos, ready_promos, sha, when, A
+    return P, T, derived, decisions, gated, promos, ready_promos, sha, when, link_sha, A
 
 
 GDEFS = gate_defs()
@@ -442,7 +510,7 @@ def gate_chip(gid, defs):
 
 
 def render(tracks_path=None):
-    P, T, derived, decisions, gated, promos, ready_promos, sha, when, A = build(tracks_path)
+    P, T, derived, decisions, gated, promos, ready_promos, sha, when, link_sha, A = build(tracks_path)
 
     # ---- the four decisions ----------------------------------------------
     if decisions:
@@ -559,7 +627,7 @@ def render(tracks_path=None):
             mk = {"x": "met", "~": "malformed", " ": "not met",
                   "?": "&mdash;"}.get(d["mark"], d["mark"])
             wired = ", ".join(mono(os.path.basename(x)) for x in GWIRE.get(i.split("-")[0], [])) or "&mdash;"
-            where = (mono(d["ledger"]) if d["src"] == "ledger"
+            where = (mono(d["ledger"], d.get("line")) if d["src"] == "ledger"
                      else f'{d["ledger"]}<br><span class=held style="margin:0">'
                           f'stated in the DAG, no CHECK/EXPECT/EVIDENCE triple &mdash; '
                           f'not re-runnable from the bag</span>')
@@ -771,7 +839,17 @@ def render(tracks_path=None):
     A(f'<p>Generated from <code>orchestration/tracks.yaml</code> at commit '
       f'<code>{e(sha[:12])}</code>, committed <code>{e(when)}</code>. '
       f'No wall-clock is embedded, so two runs at one commit are byte-identical and '
-      f'<code>gen_board.py --check</code> can detect drift.</p>')
+      f'<code>gen_board.py --check</code> can detect drift. That is the commit that last touched '
+      f'the DAG, not HEAD, so an unrelated commit does not make this page look stale.</p>')
+    if LINKS["base"]:
+        A(f'<p>File links are pinned to <code>{e(link_sha[:12])}</code> (HEAD), not to the branch, so '
+          f'they keep showing each file as it was when this page was written. A different commit from '
+          f'the one above, deliberately: the board&rsquo;s data is a function of '
+          f'<code>tracks.yaml</code>, but several files it names did not exist yet at that commit. '
+          f'A path shown plain is one the repository does not contain here &mdash; a promote '
+          f'destination no track has written yet, or derived data that is not committed.</p>')
+        A('<p><strong>The repository is private.</strong> These links resolve only for someone with '
+          'access to it; this page being shareable does not make the repository so.</p>')
     A('<p>Green on a check proves the check ran. It proves nothing else.</p>')
     A("<p>Unofficial derived work. Current to 2025-01-16 (through O. Reg. 5/25). "
       "Not the official Building Code Compendium. "
@@ -785,8 +863,11 @@ def main():
     ap.add_argument("--file", help="tracks.yaml to render")
     ap.add_argument("--out", default=OUT, help="output path, or - for stdout")
     ap.add_argument("--check", action="store_true", help="exit 1 if the written board has drifted")
+    ap.add_argument("--no-links", action="store_true", help="emit plain code, no repository links")
     a = ap.parse_args()
 
+    global NO_LINKS
+    NO_LINKS = a.no_links
     doc = render(a.file)
 
     if a.check:

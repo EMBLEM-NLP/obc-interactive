@@ -12,6 +12,12 @@ jobs:
   board:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # Job-level env MAY read secrets; a step-level `if:` may NOT - referencing
+      # `secrets` there is a parse-time failure ("Unrecognized named-value"),
+      # not a false-y evaluation, so it rejects the whole workflow. An unset
+      # secret resolves to the empty string here, which is what makes this work.
+      HAS_DATA: ${{ secrets.OBC_DATA_URL != '' || secrets.OBC_DATA_TARBALL != '' }}
     steps:
       - uses: actions/checkout@v4
         # no lfs: true - the repo has no LFS objects by design (.gitattributes)
@@ -31,15 +37,43 @@ jobs:
       # produced no gate result at all when one was available for free.
       - name: hooks are falsifiable
         run: bash ci/test_hooks.sh
+      # Reads only tracks.yaml. It sat after the data fetch and was therefore
+      # skipped in all ten runs to date, for want of data it never touches.
+      - name: DAG consistency
+        run: python3 orchestration/schedule.py --check
       - name: fetch derived data (323 MB, verified against data-manifest.json)
-        env: { OBC_DATA_URL: "${{ secrets.OBC_DATA_URL }}" }
+        if: ${{ env.HAS_DATA == 'true' }}
+        env:
+          OBC_DATA_URL: ${{ secrets.OBC_DATA_URL }}
+          OBC_DATA_TARBALL: ${{ secrets.OBC_DATA_TARBALL }}
         run: bash ci/fetch_data.sh
+      # A skipped step is not a passed one, and nothing about a red run says
+      # which. This makes the reason legible without touching the conclusion:
+      # annotations and summaries are advisory and never flip a job green.
+      - name: note that the data fetch was skipped
+        if: ${{ env.HAS_DATA != 'true' }}
+        run: |
+          echo "::warning title=Data fetch skipped::No OBC_DATA_URL or OBC_DATA_TARBALL secret is set. The board will run its data-independent gates and fail at DATA1."
+          {
+            echo "### Derived data fetch skipped"
+            echo
+            echo "No \`OBC_DATA_URL\` or \`OBC_DATA_TARBALL\` secret is configured, so the 323 MB of derived data was not fetched."
+            echo
+            echo "The board runs E1 and E2, then fails at **DATA1**. That is the correct outcome rather than a broken run:"
+            echo "a gate that could not read its data has not passed."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: fetch Crown-copyright sources from secrets (URLs never enter agent context)
         env:
           OBC_PDF_URL_V1: ${{ secrets.OBC_PDF_URL_V1 }}
           OBC_PDF_URL_V2: ${{ secrets.OBC_PDF_URL_V2 }}
         run: bash ci/fetch_sources.sh
+      # Guarded on the same flag, and this is the part that makes the change
+      # work at all. ci/regenerate.sh refuses without data and exits 1, so
+      # leaving it unguarded keeps the board skipped even when the fetch above
+      # skips cleanly - moving the failure one step later without ever reaching
+      # DATA1, which is the outcome this whole guard exists to produce.
       - name: regenerate derived artifacts in dependency order
+        if: ${{ env.HAS_DATA == 'true' }}
         run: bash ci/regenerate.sh
       - name: gate board (full — includes the slow gates the Stop hook skips)
         env: { OBC_CHECK_EMBED: "1" }
@@ -50,8 +84,6 @@ jobs:
         run: python3 harden/checks/check35_controls.py --db emitters/obc-mod.sqlite
       - name: G2 — the cannot list is computed and falsifiable
         run: cd retrieval && python3 checks/check38_capabilities.py --db ../emitters/obc-mod.sqlite
-      - name: DAG consistency
-        run: python3 orchestration/schedule.py --check
       - uses: actions/upload-artifact@v4
         if: always()
         with:

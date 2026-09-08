@@ -25,6 +25,12 @@ t "edit a gate ledger"            2 $H/protect-checks.sh '{"tool_name":"Edit","t
 t "edit a hook itself"            2 $H/protect-checks.sh '{"tool_name":"Edit","tool_input":{"file_path":".claude/hooks/gate-complete.sh"}}'
 t "edit a stage (allowed)"        0 $H/protect-checks.sh '{"tool_name":"Edit","tool_input":{"file_path":"retrieval/stage18_definitions.py"}}'
 t "edit a work package (allowed)" 0 $H/protect-checks.sh '{"tool_name":"Write","tool_input":{"file_path":"orchestration/work-packages/A4.md","content":"x"}}'
+# What counts as machinery is defined once, in check41's PROTECTED, and this
+# hook asks that file. These two cases exist because protect-checks kept its own
+# copy of the list until 2026-09-08 and the copies had already drifted.
+t "edit the CI workflow"          2 $H/protect-checks.sh '{"tool_name":"Edit","tool_input":{"file_path":".github/workflows/gates.yml"}}'
+t "edit a non-workflow .github"   0 $H/protect-checks.sh '{"tool_name":"Write","tool_input":{"file_path":".github/ISSUE_TEMPLATE.md","content":"x"}}'
+t "edit a schema (allowed)"       0 $H/protect-checks.sh '{"tool_name":"Edit","tool_input":{"file_path":"schema/obc.linkml.yaml"}}'
 
 echo "=== guard-commit: is this a commit at all? ==="
 # Command position, not substring. The old regex matched the verb anywhere in
@@ -68,6 +74,10 @@ t "absolute path to a check"          2 $H/guard-machinery.sh "$(bj 'touch /home
 t "absolute path to a hook"           2 $H/guard-machinery.sh "$(bj 'sed -i s/a/b/ /home/user/obc-interactive/.claude/hooks/decision-guard.sh')"
 t "another checkout of the repo"      2 $H/guard-machinery.sh "$(bj 'cat > /home/user/obc-interactive/.claude/worktrees/agent-x/ci/checks.yaml')"
 t "absolute path, not machinery"      0 $H/guard-machinery.sh "$(bj 'touch /home/user/obc-interactive/README.md')"
+# The workflow that runs the board belongs with the runner it invokes.
+t "write the CI workflow"             2 $H/guard-machinery.sh "$(bj 'cat > .github/workflows/gates.yml')"
+t "sed -i the CI workflow, absolute"  2 $H/guard-machinery.sh "$(bj 'sed -i s/a/b/ /home/user/obc-interactive/.github/workflows/gates.yml')"
+t "write a non-workflow .github"      0 $H/guard-machinery.sh "$(bj 'cat > .github/ISSUE_TEMPLATE.md')"
 
 echo "=== guard-verify-readonly (wired only into verify-track) ==="
 t "verifier: the board"               0 $H/guard-verify-readonly.sh "$(bj 'python3 ci/run_gates.py')"

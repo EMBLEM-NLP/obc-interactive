@@ -74,6 +74,11 @@ PROTECTED = [
     "ci/run_gates.py",
     "ci/regenerate.sh",
     "ci/test_hooks.sh",
+    # The workflow that RUNS the board belongs with the runner it invokes.
+    # ci/run_gates.py and ci/checks.yaml were protected and this was not, so an
+    # executor could edit or disable CI outright and neither guard-machinery
+    # nor this gate would notice. Found while auditing a proposed change to it.
+    ".github/workflows/*",
     ".claude/hooks/*",
     ".claude/settings.json",
 ]

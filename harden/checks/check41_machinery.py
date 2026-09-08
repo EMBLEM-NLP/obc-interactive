@@ -144,6 +144,19 @@ def drift(root=_PKG):
     rc, _, err = git(["rev-parse", "--git-dir"], root)
     if rc != 0:
         return [], [], f"not a git working tree ({err.strip()[:80]})"
+    # Refresh the index FIRST. `git diff-index` compares stat data and does not
+    # refresh, so a file whose mtime or ctime moved while its content stayed
+    # identical is reported as modified. ci/test_hooks.sh moves _cmdstrip.py and
+    # this file out and back to test the missing-helper cases, which changes
+    # ctime; on CI run 11 that alone made E2 report "machinery drifted from
+    # HEAD" with nothing whatsoever changed. It passed locally only because an
+    # interactive session runs `git status` constantly, which refreshes and
+    # rewrites the index as a side effect.
+    #
+    # A gate that goes red for a reason unrelated to what it guards is this
+    # project's own defect in the opposite polarity: not a false green, but a
+    # false red, which gets a gate ignored just as thoroughly.
+    git(["update-index", "--refresh", "-q"], root)   # non-zero when files differ; not an error
     rc, out, err = git(["diff-index", "--name-only", "HEAD", "--"], root)
     if rc != 0:
         return [], [], f"git diff-index failed ({err.strip()[:80]})"
@@ -196,11 +209,25 @@ def negative_control():
         if err:
             print("RESULT: FAIL - control could not evaluate the mutated tree")
             return 1
-        if "harden/checks/check23_controls.py" in modified:
-            print("RESULT: PASS - the mutation was detected, so this gate can go red")
-            return 0
-        print("RESULT: FAIL - a mutated check went undetected; this gate is void")
-        return 1
+        if "harden/checks/check23_controls.py" not in modified:
+            print("RESULT: FAIL - a mutated check went undetected; this gate is void")
+            return 1
+
+        # The other half of the control: it must NOT go red for a touch. A gate
+        # that fires on mtime is not measuring content, and CI run 11 proved it
+        # fires in practice, not just in theory.
+        victim2 = os.path.join(dst, "harden", "checks", "check24_metamorphic.py")
+        content = open(victim2, "rb").read()
+        os.utime(victim2, None)
+        modified2, _, err2 = drift(dst)
+        open(victim2, "wb").write(content)
+        print(f"false-positive control: touched check24 without changing a byte")
+        print(f"  reported modified : {'yes - WRONG' if 'harden/checks/check24_metamorphic.py' in modified2 else 'no'}")
+        if "harden/checks/check24_metamorphic.py" in modified2:
+            print("RESULT: FAIL - the gate reports drift for an unchanged file")
+            return 1
+        print("RESULT: PASS - detects a real change, ignores a bare touch")
+        return 0
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

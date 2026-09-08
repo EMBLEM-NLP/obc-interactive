@@ -29,7 +29,13 @@ if [ "$VERDICT" = "COMMIT" ]; then
     echo "BLOCKED: edited after the last regenerate: $NEWER. Run ci/regenerate.sh, then commit. (guard-commit)" >&2; exit 2; fi
 fi
 
-if echo "$HOOK_CMD" | grep -q 'check33b_completeness' && ! echo "$HOOK_CMD" | grep -q -- '--all-articles'; then
+# Whether check33b is being RUN, and in which mode, is decided by lexing - not
+# by grepping the command string. The old test refused `grep -rn
+# check33b_completeness .` and even `cat` on the file, because reading about a
+# check looked identical to running it.
+MODE=$(printf '%s' "$HOOK_CMD" | python3 "$D/_cmdstrip.py" --check33b 2>/dev/null) || {
+  echo "BLOCKED (fail-closed): could not determine whether check33b is being run. (guard-corpus)" >&2; exit 2; }
+if [ "$MODE" = "EVAL" ]; then
   echo "BLOCKED: check33b must run with --all-articles; corpus mode gates, eval mode is convenience. (guard-corpus)" >&2; exit 2; fi
 if echo "$HOOK_CMD" | grep -qE '30188[01]\.pdf' && ! echo "$HOOK_CMD" | grep -qE 'built_from_model|fetch\.txt'; then
   echo "BLOCKED: the source PDFs are fetch-only (Crown copyright). CI fetches them via ci/fetch_sources.sh from secrets. (guard-source)" >&2; exit 2; fi

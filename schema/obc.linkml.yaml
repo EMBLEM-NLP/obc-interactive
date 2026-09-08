@@ -1,0 +1,315 @@
+id: https://obc.local/schema/obc
+name: obc-docgraph
+title: Ontario Building Code document graph — declared schema
+description: >-
+  The declared shape of the OBC document graph. Two jobs. (1) Close the type
+  system: NodeType and EdgeKind are closed enums, so an undeclared type fails
+  validation instead of flowing silently into the emitters. (2) Make three
+  known dual-encoding defects UNREPRESENTABLE rather than merely discouraged —
+  see the `defect` annotations on Table.forms_part_of, Edge.kind and EdgeKind.
+  Enumerations are transcribed from the shipped pipeline, cited per value in
+  the `src` annotation. Nothing here was inferred from a database: this schema
+  was authored in a data-less clone, and `check36_schema.py` is what confronts
+  it with the 27,421 nodes.
+license: https://creativecommons.org/licenses/by/4.0/
+prefixes:
+  linkml: https://w3id.org/linkml/
+  obc: https://obc.local/schema/obc/
+default_prefix: obc
+default_range: string
+imports:
+  - linkml:types
+
+# ===========================================================================
+# ENUMS — closed. An unknown value is a validation error, which is the point.
+# ===========================================================================
+enums:
+
+  NodeType:
+    description: >-
+      Every node type the pipeline can emit. 23 values. `role` partitions them
+      into the three disjoint subclasses of Node; nothing may be both.
+    permissible_values:
+      division:               {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      part:                   {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      contents:               {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      section:                {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      subsection:             {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      article:                {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      act:                    {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      act_section:            {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      front_matter:           {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      index:                  {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
+      appendix:               {annotations: {role: container, src: "pipeline/vol2/stage3v2_tree.py:127"}}
+      supplementary_standard: {annotations: {role: container, src: "pipeline/vol2/stage3v2_tree.py:127"}}
+      note:                   {annotations: {role: container, src: "pipeline/vol2/stage3v2_tree.py:145"}}
+      sentence:               {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
+      clause:                 {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
+      subclause:              {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
+      act_subsection:         {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
+      act_clause:             {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
+      act_subclause:          {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
+      table:                  {annotations: {role: other, src: "pipeline/stage5_bind.py:82"}}
+      defined_term:           {annotations: {role: other, src: "retrieval/stage18_definitions.py:267"}}
+      index_entry:            {annotations: {role: other, src: "pipeline/stage3_tree.py"}}
+      index_subentry:         {annotations: {role: other, src: "pipeline/stage3_tree.py"}}
+
+  EdgeKind:
+    description: >-
+      Every relation the graph can carry between two nodes, other than
+      containment (Node.parent / Node.children, an inverse pair below).
+      DEFECT 3 IS CLOSED HERE. Every permissible value MUST carry a `reverse`
+      annotation naming the backward traversal, and every edge of every kind is
+      an instance of the single class Edge, whose `dst` slot is the reverse
+      index. There is therefore no way to add an edge kind without a reverse
+      path: a new kind can only be a new permissible value of this enum, and it
+      inherits Edge.dst by construction. Adding a relation any other way — a new
+      slot on Node, a second edge class, a sidecar table — fails validation
+      because every class in this schema is closed.
+      Ten values: the nine citation kinds of the stage7 grammar plus `term`.
+    permissible_values:
+      code_ref: {description: "citation to a Code provision",
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:71"}}
+      cap_ref:  {description: "prose citing a Table or Figure. NOT a table's own binding — see Table.forms_part_of",
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:72"}}
+      act_ref:  {description: "citation to the Building Code Act, 1992",
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:73"}}
+      short:    {description: "short-form Act citation, s. / ss.",
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:74"}}
+      note:     {description: "Appendix A explanatory note",
+                 annotations: {reverse: explains, dst_optional: "true", src: "pipeline/stage7_refs.py:75"}}
+      supp:     {description: "Supplementary Standard SA/SB/SC",
+                 annotations: {reverse: applied_by, dst_optional: "true", src: "pipeline/stage7_refs.py:76"}}
+      form:     {description: "Volume 2 Form",
+                 annotations: {reverse: used_by, dst_optional: "true", src: "pipeline/stage7_refs.py:77"}}
+      ca:       {description: "compliance-alternative row",
+                 annotations: {reverse: alternative_for, dst_optional: "true", src: "pipeline/stage7_refs.py:78"}}
+      std:      {description: "referenced standard, Table 1.3.1.2",
+                 annotations: {reverse: referenced_by, dst_optional: "true", src: "pipeline/stage7_refs.py:79"}}
+      term:     {description: "use of a defined term. DEFECT 2 IS CLOSED HERE: term usage is an EdgeKind, not a separate table. See Edge.",
+                 annotations: {reverse: used_in, dst_optional: "false", src: "pipeline/stage7_refs.py:205 and retrieval/stage18_definitions.py:289"}}
+
+  Resolution:
+    description: >-
+      Why an Edge does or does not have a `dst`. One slot, one vocabulary. The
+      shipped `ref.reason` column and stage18's `term_resolved.how` column are
+      the same fact and collapse here.
+    permissible_values:
+      exact:            {annotations: {resolved: "true"}}
+      other_division:   {annotations: {resolved: "true"}}
+      singular:         {annotations: {resolved: "true", src: "retrieval/stage18_definitions.py"}}
+      not_in_edition:   {annotations: {resolved: "false"}}
+      not_in_table_1_3_1_2: {annotations: {resolved: "false"}}
+      figure_asset:     {annotations: {resolved: "false"}}
+      external_volume2: {annotations: {resolved: "false"}}
+      compliance_alternative_row: {annotations: {resolved: "false"}}
+
+  Modality:
+    description: "Deontic force of a text-bearing leaf. retrieval/stage20_modality.py:44"
+    permissible_values:
+      prohibition: {}
+      obligation: {}
+      permission: {}
+      exemption: {}
+      statement: {}
+
+  AmendmentKind:
+    description: "pipeline/stage9_amendments.py marker classes"
+    permissible_values:
+      amended: {}
+      new: {}
+      revoked: {}
+      unchanged: {}
+
+# ===========================================================================
+# SLOTS
+# ===========================================================================
+slots:
+  id:         {identifier: true, description: "citation-grammar node id, e.g. B/9/9.32.3.8/(1)/(a)"}
+  type:       {range: NodeType, required: true,
+               description: "closed. An undeclared value is a validation error — gate S0."}
+  parent:     {range: Node, inverse: children,
+               description: "CONTAINMENT ONLY. Physical/structural position in the document tree. It is not a citation and it is never a binding."}
+  children:   {range: Node, multivalued: true, inverse: parent}
+  volume:     {range: integer}
+  number:     {}
+  designator: {}
+  heading:    {}
+  body:       {}
+  depth:      {range: integer}
+  page:       {range: integer}
+  bbox:       {range: float, multivalued: true, exact_mappings: [obc:bbox_x0y0x1y1]}
+  permalink:  {range: uriorcurie}
+  modality:   {range: Modality,
+               description: "set only on Provision. retrieval/stage20_modality.py"}
+  src:        {range: Node, required: true}
+  dst:        {range: Node, description: "absent iff the citation did not resolve; see Edge rule R1"}
+  kind:       {range: EdgeKind, required: true}
+  resolution: {range: Resolution, required: true}
+  text:       {description: "the citing surface string, verbatim"}
+  chunk:      {description: "'*' for the joined body, gN for grid cell N"}
+  span_start: {range: integer}
+  span_end:   {range: integer}
+  forms_part_of: {range: Provision, multivalued: true}
+
+# ===========================================================================
+# CLASSES — all closed. `closed: true` is asserted so check36 can verify that
+# no consumer has quietly widened one; a widened class is how an undeclared
+# edge kind gets in without touching EdgeKind.
+# ===========================================================================
+classes:
+
+  DocumentGraph:
+    tree_root: true
+    annotations: {closed: "true"}
+    description: "The whole graph. Exactly two collections: nodes and edges."
+    slots: []
+    attributes:
+      nodes:      {range: Node, multivalued: true, inlined_as_list: true, required: true}
+      edges:      {range: Edge, multivalued: true, inlined_as_list: true, required: true}
+      amendments: {range: Amendment, multivalued: true, inlined_as_list: true}
+      current_to: {range: date, required: true}
+      through:    {required: true, description: "last amending instrument, e.g. O. Reg. 5/25"}
+
+  Node:
+    abstract: true
+    annotations: {closed: "true"}
+    description: >-
+      Base of the three disjoint subclasses. The only Node-ranged slots on this
+      class are `parent` and `children`, which are declared an inverse pair.
+      That is deliberate and is half of defect 3's closure: a relation cannot be
+      added as a new Node slot, because the class is closed.
+    slots: [id, type, parent, children, volume, number, designator, heading,
+            body, depth, page, bbox, permalink]
+
+  StructuralContainer:
+    is_a: Node
+    annotations: {closed: "true"}
+    description: "type.role == container. Holds other nodes; carries no deontic force."
+    slot_usage:
+      type: {range: NodeType, any_of: [{equals_string: division}, {equals_string: part},
+             {equals_string: contents}, {equals_string: section}, {equals_string: subsection},
+             {equals_string: article}, {equals_string: act}, {equals_string: act_section},
+             {equals_string: front_matter}, {equals_string: index}, {equals_string: appendix},
+             {equals_string: supplementary_standard}, {equals_string: note}]}
+
+  Provision:
+    is_a: Node
+    annotations: {closed: "true"}
+    description: "type.role == provision. A text-bearing leaf; the unit modality attaches to."
+    slots: [modality]
+    slot_usage:
+      body: {required: true}
+      type: {range: NodeType, any_of: [{equals_string: sentence}, {equals_string: clause},
+             {equals_string: subclause}, {equals_string: act_subsection},
+             {equals_string: act_clause}, {equals_string: act_subclause}]}
+
+  Table:
+    is_a: Node
+    annotations:
+      closed: "true"
+      defect: >-
+        DEFECT 1 IS CLOSED HERE. In pipeline/stage5_bind.py:81-83 the binding
+        stated by the caption ("Forming Part of Sentences 9.23.2.8.(1)") is
+        written into TWO fields of the same node — `parent = target or pid` and
+        `forming_part_of = target` — so `parent` means "the provision this table
+        forms part of" when the caption parsed and "the Part that physically
+        contains it" when it did not, and a consumer reading either field alone
+        is wrong for a different subset of tables. Here `parent` is narrowed to
+        StructuralContainer, which is disjoint from Provision, so the binding is
+        not expressible in `parent` at all; `forms_part_of` is the sole
+        representation, and it is multivalued because a caption may name several
+        sentences. There is no third place to put it: the class is closed.
+    slots: [forms_part_of]
+    slot_usage:
+      type:   {range: NodeType, equals_string: table}
+      parent: {range: StructuralContainer, required: true,
+               description: "where the table physically sits. Never the binding."}
+      forms_part_of: {recommended: true,
+               description: "the provisions the caption declares this table forms part of. THE binding."}
+    attributes:
+      nrows: {range: integer}
+      ncols: {range: integer}
+      cells: {range: Cell, multivalued: true, inlined_as_list: true}
+
+  DefinedTerm:
+    is_a: Node
+    annotations: {closed: "true"}
+    description: "One definition, split out of a 17 KB blob by retrieval/stage18_definitions.py."
+    slot_usage:
+      type: {range: NodeType, equals_string: defined_term}
+      body: {required: true}
+      heading: {required: true, description: "the term as printed"}
+    attributes:
+      norm: {required: true, description: "normalised lookup key"}
+      blob: {range: Node, required: true, description: "the clause the definition was split from"}
+
+  IndexEntry:
+    is_a: Node
+    annotations: {closed: "true"}
+    slot_usage:
+      type: {range: NodeType, any_of: [{equals_string: index_entry}, {equals_string: index_subentry}]}
+
+  Edge:
+    annotations:
+      closed: "true"
+      defect: >-
+        DEFECT 2 IS CLOSED HERE. The shipped emitters split one relation across
+        three tables — `ref` (stage15_sqlite.py:52), `term` (:57) and
+        `term_resolved` (stage18_definitions.py:289) — so "what does this
+        provision depend on" is a UNION every consumer must remember to write
+        (obc_context.py:233-234) and a `has_table('term_resolved')` fallback
+        every consumer must remember to branch on (obc_context.py:268), while
+        the reverse direction is two hand-written queries
+        (obc_agent_tools.py:154 and :178). One class carries all ten kinds. A
+        `term` edge is an Edge with kind=term; there is no TermEdge, no `terms`
+        slot on Node, and no resolved-copy class — resolution is a slot, so an
+        edge cannot exist twice in two states. The unique key makes the
+        duplicate literally unrepresentable.
+    slots: [src, dst, kind, resolution, text, chunk, span_start, span_end]
+    unique_keys:
+      one_edge_per_span:
+        unique_key_slots: [src, kind, chunk, span_start]
+        description: "an edge is identified by where it was written, so a resolved and an unresolved copy of the same citation cannot coexist"
+    rules:
+      - title: R1_resolved_iff_dst
+        description: "dst is present exactly when resolution says it resolved."
+        preconditions:
+          slot_conditions:
+            resolution: {any_of: [{equals_string: exact}, {equals_string: other_division},
+                                  {equals_string: singular}]}
+        postconditions:
+          slot_conditions:
+            dst: {required: true}
+      - title: R2_term_always_resolves_to_a_definition
+        description: "a term edge whose dst is not a DefinedTerm is the pre-stage18 blob defect."
+        preconditions: {slot_conditions: {kind: {equals_string: term}}}
+        postconditions: {slot_conditions: {dst: {range: DefinedTerm, required: true}}}
+      - title: R3_cap_ref_is_never_a_binding
+        description: >-
+          A cap_ref points from prose TO a table. A Table is never the src of a
+          cap_ref; if it were, that would be defect 1 re-entering through the
+          edge table after being closed on the node.
+        preconditions: {slot_conditions: {kind: {equals_string: cap_ref}}}
+        postconditions: {slot_conditions: {src: {range: Node, none_of: [{range: Table}]}}}
+
+  Cell:
+    annotations: {closed: "true"}
+    attributes:
+      r: {range: integer, required: true}
+      c: {range: integer, required: true}
+      rowspan: {range: integer}
+      colspan: {range: integer}
+      page: {range: integer}
+      text: {}
+
+  Amendment:
+    annotations: {closed: "true"}
+    description: "pipeline/stage9_amendments.py. Attaches to a node; does not relate two nodes, so it is not an Edge."
+    attributes:
+      node:       {range: Node, required: true}
+      marker:     {}
+      kind:       {range: AmendmentKind, required: true}
+      instrument: {}
+      effective:  {range: date,
+                   description: "the date the instrument bears. NOT an in-force date — the graph cannot answer in-force, per obc://capabilities."}

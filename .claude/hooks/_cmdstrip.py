@@ -239,6 +239,36 @@ def write_targets(cmd, depth=0):
     return uniq
 
 
+def check33b_mode(cmd):
+    """NONE, CORPUS or EVAL - is check33b actually being RUN, and how?
+
+    The corpus rule used to grep the whole command string, so `grep -rn
+    check33b_completeness .` and even `cat` on the file were refused as though
+    the check were being run in eval mode. Reading about a check is not running
+    it. Same substring-versus-command-position defect as the commit verb, left
+    standing in this rule when that one was fixed. Found by the A4 subagent,
+    2026-09-08.
+    """
+    for seg in segments(strip_heredocs(cmd)):
+        if not seg:
+            continue
+        j = 0
+        while j < len(seg) and "=" in seg[j] and not seg[j].startswith("-"):
+            j += 1
+        head = seg[j:]
+        if not head:
+            continue
+        name = os.path.basename(head[0])
+        args = head[1:]
+        runs = (name in ("python3", "python", "sh", "bash", "zsh")
+                and any("check33b_completeness" in a and not a.startswith("-") for a in args))
+        if not runs and "check33b_completeness" in name:
+            runs = True
+        if runs:
+            return "CORPUS" if "--all-articles" in args else "EVAL"
+    return "NONE"
+
+
 def main():
     try:
         mode = sys.argv[1] if len(sys.argv) > 1 else "--commit"
@@ -246,6 +276,8 @@ def main():
         if mode == "--writes":
             for p in write_targets(text):
                 print(p)
+        elif mode == "--check33b":
+            print(check33b_mode(text))
         else:
             print("COMMIT" if has_commit(text) else "NONE")
     except Exception as e:                       # noqa: BLE001

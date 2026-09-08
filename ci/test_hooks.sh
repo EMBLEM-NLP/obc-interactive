@@ -52,6 +52,11 @@ touch .regen.stamp
 t "commit right after regen"          0 $H/guard-commit-and-corpus.sh "$(bj 'git commit -m x')"
 t "check33b without corpus mode"      2 $H/guard-commit-and-corpus.sh "$(bj 'python3 checks/check33b_completeness.py --db x')"
 t "check33b with --all-articles"      0 $H/guard-commit-and-corpus.sh "$(bj 'python3 checks/check33b_completeness.py --db x --all-articles')"
+# Reading about a check is not running it. The old rule grepped the whole
+# command string, so `grep` for the name and even `cat` on the file were refused.
+t "grep FOR check33b (reading)"       0 $H/guard-commit-and-corpus.sh "$(bj "grep -rn 'check33b_completeness' .")"
+t "cat check33b (reading)"            0 $H/guard-commit-and-corpus.sh "$(bj 'cat retrieval/checks/check33b_completeness.py')"
+t "check33b run after cd, eval mode"  2 $H/guard-commit-and-corpus.sh "$(bj 'cd retrieval && python3 checks/check33b_completeness.py --db x')"
 t "read the source PDF by path"       2 $H/guard-commit-and-corpus.sh "$(bj 'pdftotext /mnt/uploads/301880.pdf')"
 t "read the built PDF (allowed)"      0 $H/guard-commit-and-corpus.sh "$(bj 'pdfinfo pdf/301880_built_from_model.pdf')"
 

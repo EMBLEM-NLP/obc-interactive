@@ -52,7 +52,8 @@
             "T3",
             "T4",
             "T5",
-            "DOC1"
+            "DOC1",
+            "GID1"
           ],
           "promotes": [
             {
@@ -62,6 +63,10 @@
             {
               "from": "proposed/E/check44_distribution.py",
               "to": "harden/checks/check44_distribution.py"
+            },
+            {
+              "from": "proposed/E/check47_gateids.py",
+              "to": "harden/checks/check47_gateids.py"
             },
             {
               "from": "proposed/E/check22_docs.py",

@@ -613,6 +613,69 @@ def render(tracks_path=None):
           f'a collision.</p>')
     A("</section>")
 
+    # ---- the track index --------------------------------------------------
+    A("<section><h2>How to read a track id</h2>")
+    A('<p class=sub style="margin:0 0 18px">Three naming conventions, layered as the project grew. '
+      'The shape of an id tells you when it was added, not what it does &mdash; so the index is the '
+      'only way to read one.</p>')
+    kinds = {"numbered": [], "letter": [], "named": []}
+    for tid in T:
+        k = ("numbered" if re.match(r"^[A-Z][0-9]+$", tid)
+             else "letter" if re.match(r"^[A-Z]$", tid) else "named")
+        kinds[k].append(tid)
+    LABEL = {
+        "numbered": "numbered series &mdash; the foundational sequence, each depending on the last",
+        "letter": "single letter &mdash; the original thematic tracks",
+        "named": "named &mdash; added once single letters stopped being descriptive",
+    }
+    A('<div class=scroll><table><tr><th>track</th><th>form</th><th>title</th>'
+      '<th>needs</th><th>status</th></tr>')
+    for k in ("numbered", "letter", "named"):
+        for tid in kinds[k]:
+            st = derived[tid][0]
+            A(f'<tr><td class=num>{mono(tid)}</td><td>{k}</td>'
+              f'<td>{e(T[tid]["title"])}</td>'
+              f'<td class=num>{", ".join(mono(x) for x in (T[tid].get("depends_on") or [])) or "&mdash;"}</td>'
+              f'<td><span class="pill {st}">{e(st)}</span></td></tr>')
+    A("</table></div>")
+    A(f'<p class=sub style="margin:14px 0 0;font-size:14px">'
+      f'{", ".join(mono(x) for x in kinds["numbered"])} are the {LABEL["numbered"]}. '
+      f'{", ".join(mono(x) for x in kinds["letter"])} are {LABEL["letter"]} &mdash; note there is no '
+      f'<code>F</code>: it split into {mono("FSCOPE")}, {mono("FOBJ")} and {mono("FRULES")} when one '
+      f'letter stopped covering scope, objectives and compliance. '
+      f'{", ".join(mono(x) for x in kinds["named"])} are {LABEL["named"]}</p>')
+
+    # ---- the same id in three namespaces -----------------------------------
+    item_of = {}
+    for tid in T:
+        for k in (T[tid].get("items") or {}):
+            item_of.setdefault(str(k), []).append(tid)
+    overlap = sorted(set(item_of) & set(GDEFS))
+    tracks_as_prefix = sorted(t for t in T if any(
+        re.match(rf"^{re.escape(t)}[0-9]", g) for g in GDEFS))
+    if overlap or tracks_as_prefix:
+        A(f'<h3 style="margin-top:34px;font-size:15px">One id, more than one namespace '
+          f'({len(overlap)})</h3>')
+        A('<p class=sub style="margin:6px 0 12px">Track items and gates are numbered independently '
+          'and neither is namespaced, so the same string means different things depending on which '
+          'document you are reading. There is no tooling that resolves it and no convention that '
+          'prevents it.</p>')
+        A('<div class=scroll><table><tr><th>id</th><th>as an item of</th><th>the item</th>'
+          '<th>as a gate</th></tr>')
+        for gid in overlap:
+            d = GDEFS[gid]
+            tid = item_of[gid][0]
+            A(f'<tr><td class=num>{mono(gid)}</td><td class=num>{mono(tid)}</td>'
+              f'<td>{e(str(T[tid]["items"][gid])[:80])}</td>'
+              f'<td>{e(d["text"][:80])}</td></tr>')
+        A("</table></div>")
+        if tracks_as_prefix:
+            A(f'<p class=held style="margin-top:12px">'
+              f'{", ".join(mono(t) for t in tracks_as_prefix)} are also gate-id prefixes, so '
+              f'<code>{tracks_as_prefix[0]}1</code> may be read as the first gate of that ledger '
+              f'or the first item of that track. They are not the same thing.</p>')
+    A("</section>")
+
     # ---- what the letters mean, and where two files disagree --------------
     pref = {}
     for gid, d in GDEFS.items():

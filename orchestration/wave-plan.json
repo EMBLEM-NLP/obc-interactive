@@ -1,6 +1,6 @@
 {
   "generated_from": "orchestration/tracks.yaml",
-  "base_commit": "09060a478d7a6217ecfbe8d0ab187fde46086114",
+  "base_commit": "a6f71eed47923e2f57ac26dc39c5e902153cbdec",
   "dispatchable_wave": 1,
   "note": "Waves after 1 are speculative: they assume the previous wave completes. One human review gate per wave boundary.",
   "waves": [
@@ -53,7 +53,8 @@
             "T4",
             "T5",
             "DOC1",
-            "GID1"
+            "GID1",
+            "GID2"
           ],
           "promotes": [
             {

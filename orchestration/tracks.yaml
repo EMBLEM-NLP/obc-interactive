@@ -306,7 +306,7 @@ tracks:
       E7: check22_docs scope -> reports/*.md; reconcile ROADMAP.md, GATED_STATUS.md
       E8: check8_build needs the v9 baseline PDF — ship it or retire the check
       E9: README describes the packaged bag, not the git checkout, and never says which — split README.md (source front page, how to hydrate) from PACKAGE.md (everything gen_readme.py measures at package time); gate the hydration pointer and the obtainability of the data as DOC1
-      E10: 10 gate ids name one thing in their ledger and another in ci/checks.yaml — E1, E2, G7, G9, H6, H7, H9, V1, V4, V5. The board prints a colour beside a gate whose ledger describes something the executed check never measured. Gate GID1 detects it; resolving which file is right needs the derived data and the evidence digests, so the check reports and refuses to guess
+      E10: 10 gate ids name one thing in their ledger and another in ci/checks.yaml — E1, E2, G7, G9, H6, H7, H9, V1, V4, V5. The board prints a colour beside a gate whose ledger describes something the executed check never measured. A further 10 ids are both a track item and a gate — E1-E5 and G1-G4 and D1 — and tracks D, E and G are themselves gate-id prefixes. Gates GID1 and GID2 detect both; resolving which file is right needs the derived data and the evidence digests, so the check reports and refuses to guess
     gates:
     - T1
     - T2
@@ -315,6 +315,7 @@ tracks:
     - T5
     - DOC1
     - GID1
+    - GID2
     exit_criteria:
     - E5 absence claims need H4 controls: a detector reporting zero must be shown to report presence on a seeded fixture
     - 'DOC1 has two halves that must fail independently: D1, a README naming ci/fetch_data.sh whenever a

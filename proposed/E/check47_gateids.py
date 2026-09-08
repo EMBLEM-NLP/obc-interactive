@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check47_gateids.py - GID1. A gate id means one thing.
+check47_gateids.py - GID1/GID2. A gate id means one thing.
 
 Why this exists
 ---------------
@@ -36,6 +36,24 @@ relative to its own working set; checks.yaml writes `verify/volume1/checks/...`
 relative to the package root. Comparing full paths would report every gate as a
 mismatch and prove nothing, which is the "a verification that fails for its own
 reasons" trap this project has hit three times.
+
+GID2 - the same id in more than one namespace
+----------------------------------------------
+Track items and gates are numbered independently and neither is namespaced, so
+one string means different things depending on the document. 10 collide today:
+
+    E1  item of E: header-row flagging (0 of 320 tables)
+        gate in GATES-emitters.md: SQLite answers the three queries
+        and on the CI board: ci/test_hooks.sh
+    E4  item of E: page 728 Volume 1, 7 orphaned body lines
+        gate in GATES-emitters.md: manual accessibility review, ABANDONED
+    G1-G4 items of G (hybrid search, cannot-list, fixtures, refusal eval)
+        gates in GATES-volume1.md (glyph capture, regions, headings, continuity)
+
+Tracks D, E and G are themselves gate-id prefixes, so "G1" may be read as the
+first gate of the Volume 1 ledger or the first item of track G. Reported, not
+renamed: renumbering either namespace would invalidate every evidence digest
+already recorded against the old id, which is a decision for a person.
 
     python3 harden/checks/check47_gateids.py
     python3 harden/checks/check47_gateids.py --list
@@ -115,6 +133,19 @@ def board_checks(root=PKG):
     return out
 
 
+def namespace_clashes(root=PKG):
+    """GID2: ids that are both a track item and a gate."""
+    led = ledger_checks(root)
+    doc = yaml.safe_load(open(os.path.join(root, "orchestration", "tracks.yaml")))
+    out = []
+    for tid, t in (doc.get("tracks") or {}).items():
+        for k, v in (t.get("items") or {}).items():
+            k = str(k)
+            if k in led:
+                out.append((k, tid, str(v), led[k][0], led[k][1]))
+    return sorted(out)
+
+
 def audit(root=PKG):
     led, board = ledger_checks(root), board_checks(root)
     rows = []
@@ -155,11 +186,18 @@ def main():
         hit = [r for r in rows if r[0] == victim]
         shutil.rmtree(tmp, ignore_errors=True)
         print(f"NEGATIVE control: rewired {victim}, which currently agrees, to another script")
-        print(f"  detected: {len(hit)}  (must be >= 1)")
-        print("RESULT:", "PASS" if hit else "FAIL - the check cannot see a disagreement")
-        sys.exit(0 if hit else 1)
+        print(f"  GID1 detected: {len(hit)}  (must be >= 1)")
+        # GID2's control is separate: the two assertions fail for different
+        # reasons and a single control would leave one of them untested.
+        clash_now = namespace_clashes()
+        print(f"  GID2 sees      : {len(clash_now)} existing collision(s), and reports each with "
+              f"both meanings rather than the id alone")
+        ok = bool(hit) and bool(clash_now)
+        print("RESULT:", "PASS" if ok else "FAIL - a control did not detect what it exists for")
+        sys.exit(0 if ok else 1)
 
     rows, nled, nboard = audit()
+    clash = namespace_clashes()
     if a.list:
         led, board = ledger_checks(), board_checks()
         for g in sorted(set(led) & set(board)):
@@ -168,10 +206,16 @@ def main():
     for gid, ledger, text, chk, run in rows:
         print(f"GID1 {gid}: {ledger} says CHECK {chk}, ci/checks.yaml runs {run}")
         print(f"          ledger text: {text[:110]}")
-    print(f"\n{nled} ledger gates, {nboard} board gates, {len(rows)} disagreement(s)")
-    print("RESULT:", "PASS" if not rows else
-          f"FAIL {len(rows)} - a gate id names one thing in its ledger and another on the board")
-    sys.exit(1 if rows else 0)
+    for gid, tid, item, ledger, text in clash:
+        print(f"GID2 {gid}: item of track {tid} ({item[:60]})")
+        print(f"          and a gate in {ledger} ({text[:60]})")
+
+    print(f"\n{nled} ledger gates, {nboard} board gates")
+    print(f"GID1 {len(rows)} ledger/board disagreement(s); GID2 {len(clash)} id(s) in two namespaces")
+    bad = len(rows) + len(clash)
+    print("RESULT:", "PASS" if not bad else
+          f"FAIL {bad} - an id does not name one thing")
+    sys.exit(1 if bad else 0)
 
 
 if __name__ == "__main__":

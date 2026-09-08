@@ -32,7 +32,7 @@ Another track writes these too. `dispatch.py` will not place two tracks sharing 
 - **E7** — check22_docs scope -> reports/*.md; reconcile ROADMAP.md, GATED_STATUS.md
 - **E8** — check8_build needs the v9 baseline PDF — ship it or retire the check
 - **E9** — README describes the packaged bag, not the git checkout, and never says which — split README.md (source front page, how to hydrate) from PACKAGE.md (everything gen_readme.py measures at package time); gate the hydration pointer and the obtainability of the data as DOC1
-- **E10** — 10 gate ids name one thing in their ledger and another in ci/checks.yaml — E1, E2, G7, G9, H6, H7, H9, V1, V4, V5. The board prints a colour beside a gate whose ledger describes something the executed check never measured. Gate GID1 detects it; resolving which file is right needs the derived data and the evidence digests, so the check reports and refuses to guess
+- **E10** — 10 gate ids name one thing in their ledger and another in ci/checks.yaml — E1, E2, G7, G9, H6, H7, H9, V1, V4, V5. The board prints a colour beside a gate whose ledger describes something the executed check never measured. A further 10 ids are both a track item and a gate — E1-E5 and G1-G4 and D1 — and tracks D, E and G are themselves gate-id prefixes. Gates GID1 and GID2 detect both; resolving which file is right needs the derived data and the evidence digests, so the check reports and refuses to guess
 
 ## Gates to declare
 
@@ -43,6 +43,7 @@ Another track writes these too. `dispatch.py` will not place two tracks sharing 
 - `T5`
 - `DOC1`
 - `GID1`
+- `GID2`
 
 Every gate that reports a ratio needs a mutation in `check35_controls.py` that drives it below its floor. The mutation targets the mechanism, never the ground truth. Untouched must exit 0; mutated must exit non-zero.
 

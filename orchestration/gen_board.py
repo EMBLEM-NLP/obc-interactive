@@ -98,8 +98,15 @@ def gate_defs():
                     text += " " + t
                 else:
                     break
+            chk = None
+            for nxt in lines[i + 1:]:
+                if GATE_LINE.match(nxt):
+                    break
+                if nxt.strip().startswith("CHECK:"):
+                    chk = nxt.split("CHECK:", 1)[1].strip()
+                    break
             out.setdefault(gid, {"mark": mark, "text": " ".join(text.split()),
-                                 "ledger": rel, "src": "ledger"})
+                                 "ledger": rel, "src": "ledger", "check": chk})
 
     # A ledger is not the only place a gate is written down. A2 states CI1 and
     # CI2 as single-key mappings in its exit_criteria, and the first version of
@@ -124,7 +131,7 @@ def gate_defs():
                 for gid, text in x.items():
                     out.setdefault(str(gid), {"mark": "?", "text": " ".join(str(text).split()),
                                               "ledger": f"tracks.yaml &rarr; {tid}.exit_criteria",
-                                              "src": "dag"})
+                                              "src": "dag", "check": None})
     return out
 
 
@@ -605,6 +612,64 @@ def render(tracks_path=None):
           f'{", ".join(mono(g) for g in sorted(shared))} &mdash; which is the ordinary case and not '
           f'a collision.</p>')
     A("</section>")
+
+    # ---- what the letters mean, and where two files disagree --------------
+    pref = {}
+    for gid, d in GDEFS.items():
+        m = re.match(r"^([A-Za-z]+)[0-9]", gid)
+        if m and d["src"] == "ledger":
+            pref.setdefault(m.group(1), {}).setdefault(d["ledger"], []).append(gid)
+
+    A("<section><h2>How to read a gate id</h2>")
+    A('<p class=sub style="margin:0 0 18px">The prefix is not decorative &mdash; it says which '
+      'ledger owns the gate, and therefore which working set and which checks back it. '
+      'Derived by grouping every definition by its leading letters, so a prefix used by two '
+      'ledgers shows up as two rows rather than one.</p>')
+    A('<div class=scroll><table><tr><th>prefix</th><th>owned by</th><th>gates</th>'
+      '<th>ids</th></tr>')
+    for p in sorted(pref):
+        for ledger, ids in sorted(pref[p].items()):
+            A(f'<tr><td class=num>{mono(p)}</td><td class=num>{mono(ledger)}</td>'
+              f'<td class=num>{len(ids)}</td>'
+              f'<td class=num>{", ".join(mono(x) for x in sorted(ids)[:8])}'
+              f'{" &hellip;" if len(ids) > 8 else ""}</td></tr>')
+    A("</table></div>")
+    twice = {p: v for p, v in pref.items() if len(v) > 1}
+    if twice:
+        A(f'<p class=held style="margin-top:14px">{", ".join(mono(p) for p in sorted(twice))} '
+          f'{"is" if len(twice) == 1 else "are"} used by more than one ledger, so the prefix alone '
+          f'does not identify the owner.</p>')
+
+    # A gate id means one thing in its ledger and another on the board when the
+    # ledger's own CHECK: command is not what ci/checks.yaml runs for that id.
+    mism = []
+    for gid, d in sorted(GDEFS.items()):
+        if d["src"] != "ledger" or not d.get("check") or gid not in GWIRE:
+            continue
+        lb = os.path.basename(re.sub(r"^python3\s+", "", d["check"]).split()[0])
+        bb = os.path.basename(GWIRE[gid][0])
+        if lb != bb:
+            mism.append((gid, d, lb, bb))
+    if mism:
+        A(f'<h3 style="margin-top:34px;font-size:15px">The ledger and the board disagree about '
+          f'what this gate is ({len(mism)})</h3>')
+        A('<p class=sub style="margin:6px 0 12px">For each of these, the ledger records one '
+          '<code>CHECK:</code> command and <code>ci/checks.yaml</code> runs a different script under '
+          'the same id. So the board prints a colour beside a gate whose ledger describes something '
+          'the executed check never measured. Neither file is assumed correct here &mdash; resolving '
+          'them needs the derived data and the ledgers&rsquo; evidence digests.</p>')
+        A('<div class=scroll><table><tr><th>gate</th><th>the ledger says it asserts</th>'
+          '<th>ledger CHECK</th><th>the board runs</th></tr>')
+        for gid, d, lb, bb in mism:
+            A(f'<tr><td class=num>{mono(gid)}</td><td>{e(d["text"][:150])}</td>'
+              f'<td class=num>{mono(lb)}</td><td class=num>{mono(bb)}</td></tr>')
+        A("</table></div>")
+        A('<p class=held style="margin-top:12px">Two of these are mine. <code>E1</code> and '
+          '<code>E2</code> already named emitter gates in <code>gates/GATES-emitters.md</code> when '
+          'the enforcement layer took the same ids for <code>ci/test_hooks.sh</code> and '
+          '<code>check41_machinery.py</code>, and I then added <code>E3</code> on top of an '
+          '<code>E3</code> that was already there. Every &ldquo;E1 PASS, E2 PASS&rdquo; reported '
+          'from this board is the enforcement pair, not the emitter pair.</p>')
 
     # ---- the promote checklist -------------------------------------------
     if promos:

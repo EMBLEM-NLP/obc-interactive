@@ -336,6 +336,37 @@ footer p{margin:0 0 7px}
 </table></div>
 <p class=sub style="margin:18px 0 0;font-size:14px">8 further gate ids are declared by more than one track on the same dependency chain &mdash; <code>CI1</code>, <code>CI2</code>, <code>D1</code>, <code>H10</code>, <code>R4a</code>, <code>R4b</code>, <code>R4c</code>, <code>S0</code> &mdash; which is the ordinary case and not a collision.</p>
 </section>
+<section><h2>How to read a gate id</h2>
+<p class=sub style="margin:0 0 18px">The prefix is not decorative &mdash; it says which ledger owns the gate, and therefore which working set and which checks back it. Derived by grouping every definition by its leading letters, so a prefix used by two ledgers shows up as two rows rather than one.</p>
+<div class=scroll><table><tr><th>prefix</th><th>owned by</th><th>gates</th><th>ids</th></tr>
+<tr><td class=num><code>D</code></td><td class=num><code>gates/GATES-remediation.md</code></td><td class=num>1</td><td class=num><code>D1</code></td></tr>
+<tr><td class=num><code>DOC</code></td><td class=num><code>proposed/E/GATES-E.md</code></td><td class=num>3</td><td class=num><code>DOC1-D1</code>, <code>DOC1-D2</code>, <code>DOC1-H10</code></td></tr>
+<tr><td class=num><code>E</code></td><td class=num><code>gates/GATES-emitters.md</code></td><td class=num>5</td><td class=num><code>E1</code>, <code>E2</code>, <code>E3</code>, <code>E4</code>, <code>E5</code></td></tr>
+<tr><td class=num><code>G</code></td><td class=num><code>gates/GATES-volume1.md</code></td><td class=num>16</td><td class=num><code>G1</code>, <code>G10</code>, <code>G11</code>, <code>G12</code>, <code>G13</code>, <code>G14</code>, <code>G15</code>, <code>G16</code> &hellip;</td></tr>
+<tr><td class=num><code>H</code></td><td class=num><code>gates/GATES-hardening.md</code></td><td class=num>10</td><td class=num><code>H1</code>, <code>H1b</code>, <code>H2</code>, <code>H3</code>, <code>H4</code>, <code>H5</code>, <code>H6</code>, <code>H7</code> &hellip;</td></tr>
+<tr><td class=num><code>H</code></td><td class=num><code>gates/GATES-remediation.md</code></td><td class=num>1</td><td class=num><code>H10</code></td></tr>
+<tr><td class=num><code>M</code></td><td class=num><code>proposed/MAINT/GATES-MAINT.md</code></td><td class=num>2</td><td class=num><code>M1</code>, <code>M2</code></td></tr>
+<tr><td class=num><code>R</code></td><td class=num><code>gates/GATES-remediation.md</code></td><td class=num>4</td><td class=num><code>R4a</code>, <code>R4b</code>, <code>R4c</code>, <code>R8</code></td></tr>
+<tr><td class=num><code>R</code></td><td class=num><code>gates/GATES-retrieval.md</code></td><td class=num>5</td><td class=num><code>R1</code>, <code>R2</code>, <code>R3</code>, <code>R4</code>, <code>R5</code></td></tr>
+<tr><td class=num><code>S</code></td><td class=num><code>proposed/A4/GATES-A4.md</code></td><td class=num>2</td><td class=num><code>S0</code>, <code>S0-b</code></td></tr>
+<tr><td class=num><code>V</code></td><td class=num><code>gates/GATES-volume2.md</code></td><td class=num>7</td><td class=num><code>V1</code>, <code>V2</code>, <code>V3</code>, <code>V4</code>, <code>V5</code>, <code>V6</code>, <code>V7</code></td></tr>
+</table></div>
+<p class=held style="margin-top:14px"><code>H</code>, <code>R</code> are used by more than one ledger, so the prefix alone does not identify the owner.</p>
+<h3 style="margin-top:34px;font-size:15px">The ledger and the board disagree about what this gate is (10)</h3>
+<p class=sub style="margin:6px 0 12px">For each of these, the ledger records one <code>CHECK:</code> command and <code>ci/checks.yaml</code> runs a different script under the same id. So the board prints a colour beside a gate whose ledger describes something the executed check never measured. Neither file is assumed correct here &mdash; resolving them needs the derived data and the ledgers&rsquo; evidence digests.</p>
+<div class=scroll><table><tr><th>gate</th><th>the ledger says it asserts</th><th>ledger CHECK</th><th>the board runs</th></tr>
+<tr><td class=num><code>E1</code></td><td>SQLite answers the three queries the model was built for, ranks and highlights, and finds clause numbers</td><td class=num><code>check16_sqlite.py</code></td><td class=num><code>test_hooks.sh</code></td></tr>
+<tr><td class=num><code>E2</code></td><td>Markdown and HTML carry front matter, literal designators, HTML tables, and pass the mechanical WCAG structure checks</td><td class=num><code>check17_emitters.py</code></td><td class=num><code>check41_machinery.py</code></td></tr>
+<tr><td class=num><code>G7</code></td><td>every citation resolves or carries a reason code, with no parse failures</td><td class=num><code>check7_refs.py</code></td><td class=num><code>check6_figures.py</code></td></tr>
+<tr><td class=num><code>G9</code></td><td>the absence assertions in G8 can actually detect the defects they deny</td><td class=num><code>control_negative.py</code></td><td class=num><code>check7_refs.py</code></td></tr>
+<tr><td class=num><code>H6</code></td><td>parser and emitter invariants hold under generated input (property-based)</td><td class=num><code>-m</code></td><td class=num><code>check25_normalisation.py</code></td></tr>
+<tr><td class=num><code>H7</code></td><td>assertions compare canonical forms, so a legitimate representation change cannot fail a check</td><td class=num><code>check25_normalisation.py</code></td><td class=num><code>check27_actions.py</code></td></tr>
+<tr><td class=num><code>H9</code></td><td>no link points at a file, asserted on the PDF action dictionary rather than a viewer-level enum</td><td class=num><code>check27_actions.py</code></td><td class=num><code>check28_byteidentical.py</code></td></tr>
+<tr><td class=num><code>V1</code></td><td>every glyph Volume 2 renders is captured in the page inventory</td><td class=num><code>check0_coverage.py</code></td><td class=num><code>check12_vol2.py</code></td></tr>
+<tr><td class=num><code>V4</code></td><td>containers, Appendix A notes and Supplementary Standards are addressable</td><td class=num><code>check12_vol2.py</code></td><td class=num><code>check13_merge.py</code></td></tr>
+<tr><td class=num><code>V5</code></td><td>the Volume 1 and Volume 2 graphs merge into one addressable model</td><td class=num><code>check13_merge.py</code></td><td class=num><code>check14_crossvol.py</code></td></tr>
+</table></div>
+<p class=held style="margin-top:12px">Two of these are mine. <code>E1</code> and <code>E2</code> already named emitter gates in <code>gates/GATES-emitters.md</code> when the enforcement layer took the same ids for <code>ci/test_hooks.sh</code> and <code>check41_machinery.py</code>, and I then added <code>E3</code> on top of an <code>E3</code> that was already there. Every &ldquo;E1 PASS, E2 PASS&rdquo; reported from this board is the enforcement pair, not the emitter pair.</p>
 <section><h2>Staged, awaiting promotion (14 of 24 declared)</h2>
 <p class=sub style="margin:0 0 16px">A track may not write verification machinery; it proposes it and a person installs it (PROTOCOL R13). <code>python3 orchestration/dispatch.py --promote &lt;TRACK&gt;</code> prints the exact commands. A destination that already exists is a merge to review, never a move. Rows marked <em>not produced yet</em> are declarations by tracks that have not run; they are listed so the contract is visible, and they are not yours to act on.</p>
 <div class=scroll><table><tr><th>track</th><th>you review this</th><th>a person installs it here</th><th>kind</th></tr>

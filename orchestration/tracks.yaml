@@ -355,8 +355,12 @@ tracks:
       mutation into a check in a copied tree and requires detection. PROTECTED in that check is now the single definition
       of verification machinery, replacing two lists that disagreed on four paths. ci/test_hooks.sh 35 -> 52 cases.
       Limit stated rather than glossed: a Bash guard cannot be sound against an executor holding Bash - a python heredoc
-      calling open() modified a protected check with the hook live and was caught only by E2. E2 itself has NOT yet run
-      as part of the board, because run_gates aborts at DATA1 on a data-less clone; it was exercised standalone only.'
+      calling open() modified a protected check with the hook live and was caught only by E2.
+      2026-09-08, fourth pass (AUDIT-rev9.md): checks carrying no_data run before the DATA1 abort, so E1 and E2 execute on
+      a clone with no data. E2 has now run as part of the board (0.1 s, PASS) rather than standalone, closing the gap
+      rev8 recorded. run_gates loop body extracted to execute(), shared by both paths and pinned by a synthetic-manifest
+      control over PASS/FAIL/KNOWN/SKIP whose summary and per-gate statuses are identical before and after the change.
+      Board on a data-less clone: ran 3, passed 2 (E1, E2), failed 1 (DATA1), where it previously reported DATA1 alone.'
     executor_note: 'First action in Claude Code: run one trivial track with the hooks live and confirm each fires. Nothing
       here is proven under the host until then.'
 decisions_pending:

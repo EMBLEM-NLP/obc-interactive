@@ -26,6 +26,7 @@ You write the left column. You may not write the right column — `.claude/setti
 | `proposed/ENFORCE/checks.yaml` | `ci/checks.yaml` |
 | `proposed/ENFORCE/guard-commit-and-corpus.sh.patch` | `.claude/hooks/guard-commit-and-corpus.sh` |
 | `proposed/ENFORCE/check46_dagschema.py` | `harden/checks/check46_dagschema.py` |
+| `proposed/ENFORCE/guard-machinery-bypass.md` | `.claude/hooks/guard-machinery.sh` |
 
 ## Gates to declare
 

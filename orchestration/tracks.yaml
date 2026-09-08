@@ -416,6 +416,8 @@ tracks:
       to: .claude/hooks/guard-commit-and-corpus.sh
     - from: proposed/ENFORCE/check46_dagschema.py
       to: harden/checks/check46_dagschema.py
+    - from: proposed/ENFORCE/guard-machinery-bypass.md
+      to: .claude/hooks/guard-machinery.sh
     depends_on:
     - A2
     produces:

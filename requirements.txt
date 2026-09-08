@@ -1,0 +1,13 @@
+# pinned to what the gates were verified against on 2026-09-07
+pymupdf>=1.24
+pyyaml>=6.0
+bagit>=1.9
+sqlite-vec>=0.1
+sentence-transformers>=3.0     # R1/R3/R5 SKIP without it; CI installs it
+# Install CPU-only torch FIRST. The default wheel is a ~2.5 GB CUDA build; this
+# project never touches a GPU, and the CPU build reproduces vectors_sha256
+# bit-for-bit (verified 2026-09-08). On a constrained runner the CUDA wheel is
+# the difference between a working install and ENOSPC:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt
+mcp>=2.0                       # obc MCP server (mcp.server.mcpserver.MCPServer)

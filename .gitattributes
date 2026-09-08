@@ -1,0 +1,19 @@
+# NO Git LFS. Deliberate.
+#
+# Claude Code's cloud sandbox proxy rejects the LFS batch API, so LFS-tracked
+# files clone as ~130-byte pointer stubs (anthropics/claude-code#25043, recurring
+# as #60593). A gate reading a stub instead of a 70 MB database does not crash -
+# it reports zero rows, and a ratio over a zero denominator reports 100%. That is
+# the silent-wrong-data failure this project exists to catch.
+#
+# Instead, the 315 MB of derived binaries live OUTSIDE the repository, are
+# recorded in data-manifest.json with size and sha256, fetched by
+# ci/fetch_data.sh, and verified by check40 (gate DATA1) before any gate that
+# reads them. This works identically in every environment.
+#
+# Line endings and the executable bit still matter for the hooks.
+.claude/hooks/*.sh     text eol=lf
+ci/*.sh                text eol=lf
+retrieval/run.sh       text eol=lf
+.claude/skills/**/*.sh text eol=lf
+*.py                   text eol=lf

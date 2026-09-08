@@ -1,0 +1,219 @@
+{
+ "@context": "https://w3id.org/ro/crate/1.1/context",
+ "@graph": [
+  {
+   "@id": "ro-crate-metadata.json",
+   "@type": "CreativeWork",
+   "conformsTo": {
+    "@id": "https://w3id.org/ro/crate/1.1"
+   },
+   "about": {
+    "@id": "./"
+   }
+  },
+  {
+   "@id": "./",
+   "@type": "Dataset",
+   "name": "2024 Building Code Compendium - unofficial interactive edition",
+   "description": "Derived from Publications Ontario 301880 and 301881. Current to 2025-01-16 (through O. Reg. 5/25). Not the official version.",
+   "datePublished": "2025-01-17T00:00:00Z",
+   "license": {
+    "@id": "https://www.ontario.ca/page/copyright-information"
+   },
+   "hasPart": [
+    {
+     "@id": "model/docgraph-merged.jsonl.gz"
+    },
+    {
+     "@id": "pdf/301880_built_from_model.pdf"
+    },
+    {
+     "@id": "pdf/301881_built_from_model.pdf"
+    },
+    {
+     "@id": "emitters/obc.sqlite"
+    },
+    {
+     "@id": "emitters/markdown.tar.gz"
+    },
+    {
+     "@id": "emitters/html.tar.gz"
+    },
+    {
+     "@id": "emitters/obc-mod.sqlite"
+    }
+   ]
+  },
+  {
+   "@id": "https://www.publications.gov.on.ca/store/20170501121/Free_Download_Files/301880.pdf",
+   "@type": "File",
+   "encodingFormat": "application/pdf",
+   "name": "301880.pdf",
+   "description": "Crown-copyright source, not redistributed; recorded in fetch.txt with its checksum"
+  },
+  {
+   "@id": "https://www.publications.gov.on.ca/store/20170501121/Free_Download_Files/301881.pdf",
+   "@type": "File",
+   "encodingFormat": "application/pdf",
+   "name": "301881.pdf",
+   "description": "Crown-copyright source, not redistributed; recorded in fetch.txt with its checksum"
+  },
+  {
+   "@id": "model/docgraph-merged.jsonl.gz",
+   "@type": "File",
+   "name": "docgraph-merged.jsonl.gz",
+   "sha256": "e0b2852f0b6484868d276f59352f157397048127bfe5fe4227aedaa63fa19cdb",
+   "contentSize": 4405347
+  },
+  {
+   "@id": "pdf/301880_built_from_model.pdf",
+   "@type": "File",
+   "name": "301880_built_from_model.pdf",
+   "sha256": "4448047f4e2e990661b01fd890aa9b62aac2ec6d9b5b958c424d6642c035240b",
+   "contentSize": 19175514
+  },
+  {
+   "@id": "pdf/301881_built_from_model.pdf",
+   "@type": "File",
+   "name": "301881_built_from_model.pdf",
+   "sha256": "5b84e70616579678b285ba01cb50c52f8c8eeaf4dcdf60aebe074eae43f4cc7d",
+   "contentSize": 27476956
+  },
+  {
+   "@id": "emitters/obc.sqlite",
+   "@type": "File",
+   "name": "obc.sqlite",
+   "sha256": "613f852d93d438fb1b0346902a27cabe23f2581db82cce5c24a8d54ff6d0bfae",
+   "contentSize": 62369792
+  },
+  {
+   "@id": "emitters/markdown.tar.gz",
+   "@type": "File",
+   "name": "markdown.tar.gz",
+   "sha256": "2433f6c12917453225b02e43b20a79d82f19d7729b332fd2f15369d3f943c4de",
+   "contentSize": 1383720
+  },
+  {
+   "@id": "emitters/html.tar.gz",
+   "@type": "File",
+   "name": "html.tar.gz",
+   "sha256": "ffdb5eb509eacc565727b1c8eff54a6480ee7088aca840e1b34fa044101eb4c6",
+   "contentSize": 1587104
+  },
+  {
+   "@id": "emitters/obc-mod.sqlite",
+   "@type": "File",
+   "name": "obc-mod.sqlite",
+   "sha256": "d0555082471e35c8cf740783c844dfd1340b18c7ad248df34e9a575cb353f016",
+   "contentSize": 73568256
+  },
+  {
+   "@id": "pipeline/run.sh",
+   "@type": "SoftwareApplication",
+   "name": "stage0-9 pipeline"
+  },
+  {
+   "@id": "#action-1",
+   "@type": "CreateAction",
+   "name": "stage0-9 pipeline",
+   "instrument": {
+    "@id": "pipeline/run.sh"
+   },
+   "object": [
+    {
+     "@id": "https://www.publications.gov.on.ca/store/20170501121/Free_Download_Files/301880.pdf"
+    },
+    {
+     "@id": "https://www.publications.gov.on.ca/store/20170501121/Free_Download_Files/301881.pdf"
+    }
+   ],
+   "result": [
+    {
+     "@id": "model/docgraph-merged.jsonl.gz"
+    }
+   ],
+   "endTime": "2025-01-17T00:00:00Z"
+  },
+  {
+   "@id": "pipeline/stage8b_inject.py",
+   "@type": "SoftwareApplication",
+   "name": "stage8 link emitter and injector"
+  },
+  {
+   "@id": "#action-2",
+   "@type": "CreateAction",
+   "name": "stage8 link emitter and injector",
+   "instrument": {
+    "@id": "pipeline/stage8b_inject.py"
+   },
+   "object": [
+    {
+     "@id": "model/docgraph-merged.jsonl.gz"
+    }
+   ],
+   "result": [
+    {
+     "@id": "pdf/301880_built_from_model.pdf"
+    },
+    {
+     "@id": "pdf/301881_built_from_model.pdf"
+    }
+   ],
+   "endTime": "2025-01-17T00:00:00Z"
+  },
+  {
+   "@id": "pipeline/emitters/stage15_sqlite.py",
+   "@type": "SoftwareApplication",
+   "name": "emitters (sqlite, markdown, html)"
+  },
+  {
+   "@id": "#action-3",
+   "@type": "CreateAction",
+   "name": "emitters (sqlite, markdown, html)",
+   "instrument": {
+    "@id": "pipeline/emitters/stage15_sqlite.py"
+   },
+   "object": [
+    {
+     "@id": "model/docgraph-merged.jsonl.gz"
+    }
+   ],
+   "result": [
+    {
+     "@id": "emitters/obc.sqlite"
+    },
+    {
+     "@id": "emitters/markdown.tar.gz"
+    },
+    {
+     "@id": "emitters/html.tar.gz"
+    }
+   ],
+   "endTime": "2025-01-17T00:00:00Z"
+  },
+  {
+   "@id": "retrieval/run.sh",
+   "@type": "SoftwareApplication",
+   "name": "retrieval remediation (definitions, modality)"
+  },
+  {
+   "@id": "#action-4",
+   "@type": "CreateAction",
+   "name": "retrieval remediation (definitions, modality)",
+   "instrument": {
+    "@id": "retrieval/run.sh"
+   },
+   "object": [
+    {
+     "@id": "emitters/obc.sqlite"
+    }
+   ],
+   "result": [
+    {
+     "@id": "emitters/obc-mod.sqlite"
+    }
+   ],
+   "endTime": "2025-01-17T00:00:00Z"
+  }
+ ]
+}

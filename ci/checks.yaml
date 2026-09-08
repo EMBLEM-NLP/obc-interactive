@@ -1,0 +1,132 @@
+# ci/checks.yaml — execution context for every check in the package.
+#
+# run_gates.py reads this. Nothing here is guessed: each entry was established
+# by running the check from the bag during the portability pass (AUDIT-rev3).
+#
+#   scope:   working directory relative to the package root
+#   pre:     materialise a verify/ working set first (volume1|volume2|emitters)
+#   env:     extra environment; SOURCE_DATE_EPOCH etc. are applied to all
+#   needs:   inputs that are fetch-only; if any is unset the check is SKIPPED
+#            with the reason recorded, never run, never counted as a pass
+#   gate:    the gate id(s) this check backs, for the board
+#   superseded: true = kept for history, never executed
+
+# the two fetch-only source PDFs, carried by hash so a bag built in CI records
+# what they must be without having them (identical to harden/make_bag.py)
+sources:
+  - {url: "https://www.publications.gov.on.ca/store/20170501121/Free_Download_Files/301880.pdf", size: 16626790, rel: data/source/301880.pdf,
+     sha256: 023c0af21eaa707ee19fc8a56f92a69c71d0a1253ff3199d4168a9ceb97af958,
+     sha512: 1a344665a6ce7aaf2b7a6e1eba5c65223e474f0a271e26b1208b4709a1d8f0688a619f7668ee754cd55c45023f6b4d1b45c6cc3ae57c7041c4f656dd8d2e8f9c}
+  - {url: "https://www.publications.gov.on.ca/store/20170501121/Free_Download_Files/301881.pdf", size: 26945274, rel: data/source/301881.pdf,
+     sha256: 8ef1ed805ed47f50b986704635f6a9ef74d15bbeda3394be8b3e7beb59a558be,
+     sha512: 1505bf21971c98039c6e7a1d6e475bdcd87abfe33d292ce2de3b209b1eb860719e3c0e2ef47601b662e9c5eb86a6ecbf71afcd92b23d993cf46e09fd4fa7ff89}
+
+epoch_env:
+  PYTHONHASHSEED: "0"
+  SOURCE_DATE_EPOCH: "1737072000"
+  TZ: UTC
+
+checks:
+
+  # ---- data integrity: runs FIRST; every later gate reads these files ----
+  - {script: harden/checks/check40_dataintegrity.py, scope: harden, gate: DATA1}
+
+  # ---- pipeline (Volume 1 working set) ----
+  - script: verify/volume1/checks/check0_coverage.py
+    scope: verify/volume1
+    pre: volume1
+    args: [out/inventory.jsonl.gz, "$OBC_SRC_V1"]
+    needs: [OBC_SRC_V1]
+    gate: G1
+  - {script: verify/volume1/checks/check1_regions.py,    scope: verify/volume1, pre: volume1, gate: G2}
+  - {script: verify/volume1/checks/check2_headings.py,   scope: verify/volume1, pre: volume1, gate: G3}
+  - {script: verify/volume1/checks/check3_continuity.py, scope: verify/volume1, pre: volume1, gate: G4}
+  - {script: verify/volume1/checks/check4b_capture.py,   scope: verify/volume1, pre: volume1, gate: G5}
+  - {script: verify/volume1/checks/check5_tables.py,     scope: verify/volume1, pre: volume1, gate: G6}
+  - script: verify/volume1/checks/check6_figures.py
+    scope: verify/volume1
+    pre: volume1
+    gate: G7
+    known: "REVIEW from the bag: the 313 exported figure image files were never packaged (Track E6). Green in the build session only."
+  - {script: verify/volume1/checks/check7_refs.py,       scope: verify/volume1, pre: volume1, gate: G9}
+  - script: verify/volume1/checks/check8_build.py
+    scope: verify/volume1
+    pre: volume1
+    needs: [OBC_SRC_V1, OBC_V9_PDF]
+    gate: G8
+    note: also needs the hand-patched v9 PDF, never packaged (Track E8)
+  - {script: verify/volume1/checks/check9_amendments.py, scope: verify/volume1, pre: volume1, gate: G10}
+  - {script: verify/volume1/checks/check10_index.py,     scope: verify/volume1, pre: volume1, gate: G11}
+  - {script: verify/volume1/checks/check11_deliverable.py, scope: verify/volume1, pre: volume1, gate: G12}
+
+  # ---- volume 2 ----
+  - {script: verify/volume2/checks/check4b_capture.py,   scope: verify/volume2, pre: volume2, gate: V3}
+  - {script: verify/volume2/checks/check12_vol2.py,      scope: verify/volume2, pre: volume2, gate: V1}
+  - {script: verify/volume2/checks/check13_merge.py,     scope: verify/volume2, pre: volume2, gate: V4}
+  - {script: verify/volume2/checks/check14_crossvol.py,  scope: verify/volume2, pre: volume2, gate: V5}
+  - script: verify/volume2/checks/check15_vol2build.py
+    scope: verify/volume2
+    pre: volume2
+    needs: [OBC_SRC_V2]
+    gate: V8
+
+  # ---- emitters ----
+  - {script: verify/emitters/checks/check16_sqlite.py,   scope: verify/emitters, pre: emitters, gate: G16a}
+  - {script: verify/emitters/checks/check17_emitters.py, scope: verify/emitters, pre: emitters, gate: G16b}
+  - {script: verify/emitters/checks/check18_identity.py, scope: verify/emitters, pre: emitters, gate: G16c}
+  - script: verify/emitters/checks/check19_package.py
+    scope: verify/emitters
+    pre: emitters
+    env: {OBC_ZIP: "$ZIP"}
+    gate: G16d
+    note: run_gates builds the deliverable zip into $ZIP first
+
+  # ---- hardening ----
+  - {script: harden/checks/check20_determinism.py,   scope: harden, gate: H1}
+  - script: harden/checks/check21_bagit.py
+    scope: harden
+    env: {OBC_BAG: "$BAG"}
+    gate: H2
+    note: needs a built bag; run_gates builds one into $BAG first
+  - script: harden/checks/check22_docs.py
+    scope: harden
+    env: {OBC_PKG: "$PKG", OBC_GEN: "$PKG/harden/gen_readme.py"}
+    gate: H3
+  - {script: harden/checks/check23_controls.py,      scope: harden, gate: H4}
+  - {script: harden/checks/check24_metamorphic.py,   scope: harden, gate: H5}
+  - {script: harden/checks/check25_normalisation.py, scope: harden, gate: H6}
+  - script: harden/checks/check26_provenance.py
+    scope: harden
+    env: {OBC_PKG: "$PKG"}
+    gate: H8
+  - {script: harden/checks/check27_actions.py,       scope: harden, gate: H7}
+  - script: harden/checks/check28_byteidentical.py
+    scope: harden
+    needs: [OBC_SRC_V1]
+    gate: H9
+  - script: harden/checks/check35_controls.py
+    scope: harden
+    args: [--db, "$PKG/emitters/obc-mod.sqlite"]
+    gate: H10
+    slow: true
+
+  # ---- enforcement ----
+  - {script: ci/test_hooks.sh, scope: ., gate: E1, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
+
+  # ---- retrieval ----
+  - {script: retrieval/checks/check29_definitions.py, scope: retrieval, args: [--db, ../emitters/obc-mod.sqlite], gate: D1}
+  - {script: retrieval/checks/check30_embeddings.py,  scope: retrieval, needs_module: [sentence_transformers, transformers], env: {OBC_DB: ../emitters/obc-vec.sqlite}, gate: R1, slow: true, note: 216 s - re-encodes the corpus; excluded from --fast so the Stop hook stays inside its budget}
+  - {script: retrieval/checks/check31_evalset.py,     scope: retrieval, env: {OBC_DB: ../emitters/obc-vec.sqlite}, gate: R2}
+  - {script: retrieval/checks/check32_fusion.py,      scope: retrieval, needs_module: [sentence_transformers, transformers], env: {OBC_DB: ../emitters/obc-vec.sqlite}, gate: R3}
+  - script: retrieval/checks/check33b_completeness.py
+    scope: retrieval
+    args: [--db, ../emitters/obc-mod.sqlite, --all-articles]
+    gate: [R4a, R4b, R4c]
+  - {script: retrieval/checks/check38_capabilities.py, scope: retrieval, args: [--db, ../emitters/obc-mod.sqlite], gate: G2c}
+  - {script: retrieval/checks/check34_control.py,     scope: retrieval, needs_module: [sentence_transformers, transformers], env: {OBC_DB: ../emitters/obc-vec.sqlite}, gate: R5}
+
+  # ---- superseded: history only ----
+  - {script: retrieval/checks/superseded/check33_completeness.py, superseded: true}
+  - {script: verify/volume1/checks/superseded/check4_capture.py,  superseded: true}
+  - {script: verify/volume2/checks/superseded/check4_capture.py,  superseded: true}
+  - {script: pipeline/checks/superseded/check4_capture.py,        superseded: true}

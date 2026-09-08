@@ -1,0 +1,308 @@
+{
+ "provenance": "Hand written by reading the target provision text in the corpus, then verified: every target id exists and is an article node. Questions were NOT generated from the provision text by a model. The `paraphrase` subset is additionally constrained mechanically: it must share no content word with the target's own text, which is the only condition under which lexical retrieval is guaranteed to fail and the vector layer has to earn its place. The `lexical` subset deliberately does overlap, so the set is not rigged in favour of embeddings.",
+ "author": "assistant, 2026-09-06",
+ "limitations": "50 questions is small. It is weighted toward Part 9 (housing and small buildings) because that is where a builder asks questions in their own words. It has not been reviewed by a building official.",
+ "questions": [
+  {
+   "q": "how much makeup air does a range hood need",
+   "target": "B/9/9.32.3.8",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "what size makeup air opening for a kitchen exhaust fan",
+   "target": "B/9/9.32.3.8",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "do I have to let the loft breathe",
+   "target": "B/9/9.19.1.1",
+   "kind": "paraphrase",
+   "split": "dev"
+  },
+  {
+   "q": "required venting of roof spaces",
+   "target": "B/9/9.19.1.1",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "ventilation of unheated crawl spaces",
+   "target": "B/9/9.18.3.1",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "can a child be scalded by touching a heat emitter in a bedroom",
+   "target": "B/9/9.33.7.2",
+   "kind": "paraphrase",
+   "split": "dev"
+  },
+  {
+   "q": "surface temperature limits",
+   "target": "B/9/9.33.7.2",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "grading so water runs away from a septic bed",
+   "target": "B/9/9.14.6.2",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "sheathing membrane material standard",
+   "target": "B/9/9.27.3.2",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "waterproofing materials for foundations",
+   "target": "B/9/9.13.3.2",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "self-closing device on a door between a garage and a house",
+   "target": "B/9/9.10.13.10",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "must the entry from an attached parking area shut on its own",
+   "target": "B/9/9.10.13.10",
+   "kind": "paraphrase",
+   "split": "test"
+  },
+  {
+   "q": "venting of laundry drying equipment",
+   "target": "B/9/9.32.1.3",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "where should a clothes drier vent to",
+   "target": "B/9/9.32.1.3",
+   "kind": "paraphrase",
+   "split": "test"
+  },
+  {
+   "q": "installation of loose fill insulation",
+   "target": "B/9/9.25.2.4",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "adjusting footing widths for exterior walls",
+   "target": "B/9/9.15.3.5",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "does brick cladding change how big the base under an outside bearing element must be",
+   "target": "B/9/9.15.3.5",
+   "kind": "paraphrase",
+   "split": "dev"
+  },
+  {
+   "q": "separation of chases and recesses in masonry",
+   "target": "B/9/9.20.7.3",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "cant strips on a roof",
+   "target": "B/9/9.26.11.10",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "aggregate for concrete floors on ground",
+   "target": "B/9/9.28.2.2",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "combustible components in exterior walls",
+   "target": "B/3/3.1.6.10",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "prevention of smoke circulation",
+   "target": "B/3/3.2.4.12",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "stopping fumes travelling through the ventilation network of a highrise",
+   "target": "B/3/3.2.4.12",
+   "kind": "paraphrase",
+   "split": "dev"
+  },
+  {
+   "q": "width of means of egress",
+   "target": "B/3/3.13.4.5",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "two-way voice communication systems",
+   "target": "B/3/3.2.4.22",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "provisions for firefighting",
+   "target": "B/3/3.10.4.5",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "ventilation of storage and repair garages",
+   "target": "B/6/6.3.1.3",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "makeup air requirements",
+   "target": "B/6/6.3.2.8",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "design indoor air temperatures",
+   "target": "B/6/6.2.1.1A",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "how warm must a dwelling be able to be kept in a Canadian january",
+   "target": "B/6/6.2.1.1A",
+   "kind": "paraphrase",
+   "split": "test"
+  },
+  {
+   "q": "evaporative air coolers and misters",
+   "target": "B/6/6.3.2.16",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "total load on a drainage pipe",
+   "target": "B/7/7.4.10.1",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "thermal expansion of piping",
+   "target": "B/7/7.6.1.11",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "what if hot supply lines grow longer and there is nowhere for the volume to go",
+   "target": "B/7/7.6.1.11",
+   "kind": "paraphrase",
+   "split": "test"
+  },
+  {
+   "q": "plastic pipe fittings and solvent cement in buildings",
+   "target": "B/7/7.2.5.11",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "arch roofs curved roofs and domes",
+   "target": "B/4/4.1.6.10",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "roofs with solar panels",
+   "target": "B/4/4.1.6.16",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "photovoltaic modules on a rooftop and drifting white stuff",
+   "target": "B/4/4.1.6.16",
+   "kind": "paraphrase",
+   "split": "test"
+  },
+  {
+   "q": "seismic isolation",
+   "target": "B/4/4.1.8.19",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "deflections and drift limits",
+   "target": "B/4/4.1.8.13",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "supplemental energy dissipation",
+   "target": "B/4/4.1.8.21",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "inspections by the principal authority",
+   "target": "C/1/1.11.1.3",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "change of fees",
+   "target": "C/1/1.9.1.2",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "annual report",
+   "target": "C/1/1.9.1.1",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "administration of a maintenance inspection program",
+   "target": "C/1/1.10.2.2",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "certification and compliance",
+   "target": "C/1/1.12.1.1",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "mortar droppings in a cavity",
+   "target": "B/9/9.20.13.10",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "thickness of gypsum board",
+   "target": "B/9/9.30.3.1",
+   "kind": "lexical",
+   "split": "test"
+  },
+  {
+   "q": "public and service areas in a barrier-free path",
+   "target": "B/9/9.34.2.7",
+   "kind": "lexical",
+   "split": "dev"
+  },
+  {
+   "q": "crawl spaces and attic or roof spaces ventilation",
+   "target": "B/6/6.3.1.2",
+   "kind": "lexical",
+   "split": "dev"
+  }
+ ],
+ "split_note": "Deterministic 50/50 split by SHA-256 of the question text. The fusion weight is chosen on `dev` ONLY; `test` is used for the reported number and for the gate, so the weight is not tuned on the number it is judged by."
+}

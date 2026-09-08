@@ -1,0 +1,102 @@
+[
+  {
+    "name": "obc_capabilities",
+    "description": "What these tools can and cannot answer. Call this before answering a\n    question about applicability, classification, objectives, or currency.\n    A confident answer to a question in the `cannot` list is a hallucination\n    by construction - the data to support it does not exist in the graph.",
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "obc_search",
+    "description": "Find provisions by designator, id, or free text.\n\n    Lexical + trigram only. There is no semantic index in this tool surface\n    yet, so a query with no word overlap with the provision will miss.\n    Index and table-of-contents nodes are demoted below provisions.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 8
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "obc_get_provision",
+    "description": "Verbatim text of one node and its subtree, with modality per leaf.\n    Use this for exact quotation. Use get_context for reasoning.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id"
+      ]
+    }
+  },
+  {
+    "name": "obc_get_context",
+    "description": "The mandatory-context bundle: provision text, every defined term it\n    uses, what it cites, its explanatory notes, tables that form part of it,\n    referenced standards, amendments, and reverse citations. This is the\n    unit an agent should reason over. Never reason over get_provision alone\n    for a requirement that uses defined terms - the definitions change the\n    meaning.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string"
+        },
+        "hops": {
+          "type": "integer",
+          "default": 1
+        },
+        "budget_tokens": {
+          "type": "integer",
+          "default": 6000
+        }
+      },
+      "required": [
+        "node_id"
+      ]
+    }
+  },
+  {
+    "name": "obc_neighbors",
+    "description": "Structural neighbourhood: parent, children, and every typed edge in\n    and out. For walking the graph one step at a time.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id"
+      ]
+    }
+  },
+  {
+    "name": "obc_what_cites",
+    "description": "Every provision that depends on this one. Use before concluding a\n    change here is isolated: a definition or a table is cited from many\n    places, and the citing provisions are where the requirement lives.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 50
+        }
+      },
+      "required": [
+        "node_id"
+      ]
+    }
+  }
+]

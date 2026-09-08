@@ -1,0 +1,19 @@
+{
+  "name": "obc-interactive",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "node",
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=obc-pip,target=/home/node/.cache/pip,type=volume",
+    "source=obc-hf,target=/home/node/.cache/huggingface,type=volume"
+  ],
+  "postCreateCommand": "pip install --break-system-packages torch --index-url https://download.pytorch.org/whl/cpu && pip install --break-system-packages -r requirements.txt && bash ci/test_hooks.sh",
+  "customizations": {
+    "vscode": { "extensions": ["ms-python.python", "anthropic.claude-code"] }
+  },
+  "remoteEnv": {
+    "PYTHONHASHSEED": "0",
+    "SOURCE_DATE_EPOCH": "1737072000",
+    "TZ": "UTC"
+  }
+}

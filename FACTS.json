@@ -1,0 +1,73 @@
+{
+ "v1": {
+  "pages": 1260,
+  "goto": 35932,
+  "remote": 993,
+  "uri": 445,
+  "launch": 0,
+  "bookmarks": 3928,
+  "mb": 19.524281
+ },
+ "v2": {
+  "pages": 1001,
+  "goto": 0,
+  "remote": 4382,
+  "uri": 71,
+  "launch": 0,
+  "bookmarks": 927,
+  "mb": 27.629429
+ },
+ "sqlite": {
+  "nodes": 27421,
+  "closure": 139967,
+  "refs": 29952,
+  "terms": 16075,
+  "amendments": 144,
+  "cells": 21313,
+  "mb": 62.369792
+ },
+ "meta": {
+  "current_to": "2025-01-16",
+  "through": "O. Reg. 5/25",
+  "notice": "Unofficial version. This is not the official Building Code Compendium. Current to 16 January 2025 (through O. Reg. 5/25). Consult the official Compendium published by Publications Ontario for authoritative text.",
+  "copyright": "\u00a9 King's Printer for Ontario, 2024. Reproduced with permission. Contains material copyrighted by the National Research Council of Canada, reproduced under a licence agreement.",
+  "licence": "Permitted for personal use and non-commercial reproduction and distribution only, and only where this product is made available to the public free of charge. Any use that is not free to the public is treated by the Ministry of Municipal Affairs and Housing as commercial use and requires a licence: buildingtransformation@ontario.ca",
+  "nodes": "27421",
+  "generated": "2026-09-06"
+ },
+ "markdown_files": 38,
+ "html_files": 39,
+ "ledgers": {
+  "volume1": {
+   "total": 16,
+   "met": 15,
+   "abandoned": 0
+  },
+  "volume2": {
+   "total": 7,
+   "met": 6,
+   "abandoned": 0
+  },
+  "emitters": {
+   "total": 5,
+   "met": 4,
+   "abandoned": 1
+  }
+ },
+ "amendments": {
+  "on_page": 153,
+  "legend": 4,
+  "attached": 149,
+  "orphans": 0,
+  "rows": 144,
+  "nodes_flagged": 138
+ },
+ "residual": {
+  "not-in-this-edition": 629,
+  "not-in-Table-1.3.1.2": 363,
+  "figure asset": 313,
+  "external: Supplementary Standard (Volume 2)": 111,
+  "external: Appendix A (Volume 2)": 60,
+  "compliance-alternative row": 44
+ }
+}

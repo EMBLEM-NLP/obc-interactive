@@ -1,0 +1,360 @@
+meta:
+  package: obc-interactive
+  protocol: orchestration/PROTOCOL.md
+  registry: harden/checks/check35_controls.py
+  bag_validator: harden/checks/check21_bagit.py
+  provenance_validator: harden/checks/check26_provenance.py
+  updated: '2026-09-07'
+tracks:
+  A1:
+    title: Integrate the remediation pack
+    status: done
+    depends_on: []
+    produces:
+    - retrieval/run.sh
+    - retrieval/stage18_definitions.py
+    - retrieval/stage20_modality.py
+    - retrieval/checks/check29_definitions.py
+    - retrieval/checks/check33b_completeness.py
+    - harden/checks/check35_controls.py
+    - retrieval/lib/obc_context.py
+    - retrieval/lib/obc_agent_tools.py
+    - gates/GATES-remediation.md
+    gates:
+    - D1
+    - R4a
+    - R4b
+    - R4c
+    - R8
+    - H10
+    evidence: AUDIT.md addendum; check21 PASS; check26 5/5
+  A3:
+    title: Mutation controls for every ratio-reporting check
+    status: done
+    depends_on:
+    - A1
+    produces:
+    - harden/checks/check35_controls.py (part 2)
+    - verify/*/checks/check4b_capture.py
+    gates:
+    - H10
+    evidence: AUDIT-rev2.md; 12 gates falsifiable; 3 vacuous gates found and fixed
+    exceptions:
+    - check0_coverage — reads the fetch-only source PDF; permanent, by design
+  PORT:
+    title: Path portability — every check runs from the bag
+    status: done
+    depends_on:
+    - A3
+    produces:
+    - 31 literals rewritten across 10 files
+    - emit_common.py
+    - check20 build-order fix
+    gates:
+    - H1
+    - H4
+    - H5
+    evidence: AUDIT-rev3.md; H1/H4/H5 PASS from a clean bag; 0 bare literals in 60 files
+  A2:
+    title: CI — every gate runs on every commit
+    status: done
+    depends_on:
+    - PORT
+    consumes:
+    - tracks.yaml
+    - harden/checks/*
+    - retrieval/checks/*
+    - verify/*
+    produces:
+    - ci/run_gates.py
+    - ci/gate-board.json
+    - .github/workflows/gates.yml
+    gates:
+    - CI1
+    - CI2
+    exit_criteria:
+    - run_gates.py executes every check runnable from the bag and skips fetch-only ones WITH a stated reason
+    - gate-board.json is machine-readable and lists every gate with pass/fail/skip
+    - exit code is non-zero if any non-skipped gate fails
+    - CI1: the runner itself has an H10 control (a seeded failing check must fail the board)
+    - CI2: a run from a clean bag reproduces the same board
+    effort: 2 days
+    executor_note: 'The workflow YAML cannot be executed in the environment that built the runner. The runner is verified;
+      the trigger is not. State that in the completion report, do not claim CI is "live" until a hosted run is green.
+
+      '
+    evidence: 'AUDIT-rev4.md; run_gates.py: 38 gates, 30 pass, 0 fail, 1 known-review (G7, figure assets never packaged),
+      7 skip with stated reason; CI1 red-on-seed ok; CI2 boards identical. Workflow trigger UNVERIFIED — no hosted run yet.'
+  A4:
+    title: Declared schema (LinkML) with constraints
+    status: ready
+    depends_on:
+    - PORT
+    consumes:
+    - model/docgraph-merged.jsonl.gz
+    - emitters/obc-mod.sqlite
+    produces:
+    - schema/obc.linkml.yaml
+    - schema/obc.shacl.ttl (generated)
+    - harden/checks/check36_schema.py
+    gates:
+    - S0
+    exit_criteria:
+    - every node type and edge kind declared; unknown types fail validation
+    - the three known dual-encoding defects are unrepresentable (table binding, term usage vs citation, any edge kind without
+      a reverse path)
+    - S0 has an H10 control — inject a node with an undeclared type, validation must fail
+    - schema under ~300 lines, or refactor the model first
+    effort: 3-5 days
+    parallel_with:
+    - A2
+  B:
+    title: Model correctness — fix at source, one re-embed
+    status: blocked
+    depends_on:
+    - A4
+    consumes:
+    - pipeline/emitters/stage15_sqlite.py
+    - retrieval/stage19_embed.py
+    - pipeline/stage7_refs.py
+    produces:
+    - emitters/obc.sqlite (regenerated, byte-reproducible)
+    - emitters/obc-vec.sqlite (re-embedded)
+    - emitters/obc-mod.sqlite
+    items:
+      B1: suppress flattened article bodies BEFORE embedding (179 articles, 303,204 chars)
+      B2: forming_part_of as explicit ref edge in the emitter, schema-enforced
+      B3: stage7 scans headings for note references (44 of 64 unlinked)
+      B4: regenerate obc.sqlite so the shipped file no longer carries the wall-clock date
+    gates:
+    - G5
+    - V3
+    - R4a
+    - R4b
+    - R4c
+    - D1
+    - S0
+    exit_criteria:
+    - all four items land, THEN one re-embed; never three
+    - embed_meta.vectors_sha256 changes; recall@5 on evalset must not regress
+    - shipped obc.sqlite byte-matches a fresh rebuild (check20 whole-file)
+    effort: 3 days
+    trap: 'B1 must reuse obc_context.owns_table so the assembler and embedder agree on what an article''s text is. Two definitions
+      of "the text" is how the table-binding bug happened.
+
+      '
+  G:
+    title: Agent surface hardening
+    status: blocked
+    depends_on:
+    - B
+    consumes:
+    - retrieval/lib/obc_agent_tools.py
+    - emitters/obc-vec.sqlite
+    produces:
+    - retrieval/lib/obc_agent_tools.py (G1 hybrid search, G2 computed cannot-list)
+    - retrieval/checks/check38_capabilities.py
+    - retrieval/checks/check39_tools.py
+    - retrieval/refusal-evalset.json
+    items:
+      G1: hybrid (vector ∪ BM25, RRF) inside obc_search; remove "no semantic index" from cannot
+      G2: capabilities.cannot computed from graph state; check38 (G2c) proves every probe clears when its capability is seeded
+        — DONE 2026-09-07
+      G3: fixture + control per tool
+      G4: refusal eval — hallucinated-applicability rate
+    gates:
+    - G1
+    - G2
+    - G3
+    - G4
+    exit_criteria:
+    - G2's check has an H10 control — add an occupancy node, the applicability line must disappear from cannot
+    - hallucinated-applicability rate measured and near zero
+    effort: 1 week
+  FSCOPE:
+    title: Applicability — occupancy, predicates, APPLIES_TO, obc_scope
+    status: blocked
+    depends_on:
+    - G
+    consumes:
+    - Division A 1.1.2
+    - Division A 3.1.2
+    - Division B 3.1.2
+    - defined_term nodes
+    produces:
+    - retrieval/stage21_occupancy.py
+    - retrieval/stage22_applicability.py
+    - retrieval/lib/obc_agent_tools.py (obc_scope)
+    - gates/GATES-scope.md
+    items:
+      F1: occupancy nodes A1-A4, B1-B3, C, D, E, F1-F3
+      F2: Part-applicability predicate table with node-id provenance
+      F3: APPLIES_TO edges
+      F4: obc_scope tool — returns applicable Parts with justifying provision ids and an explicit not-considered list
+    gates:
+    - S1
+    - S2
+    - S3
+    - S4
+    exit_criteria:
+    - S3: obc_scope on 20 hand-verified building descriptions matches a building official
+    - S4 (H10): ablate the predicate table, obc_scope must REFUSE not guess
+    effort: 2 weeks
+    trap: This is not a rule engine. Division A 1.1.2 is a predicate table. Do not reach for LegalRuleML here.
+  D:
+    title: Measurement
+    status: blocked
+    depends_on:
+    - FSCOPE
+    produces:
+    - retrieval/evalset-v2.json
+    - retrieval/agent-tasks.json
+    - retrieval/checks/check36_modality.py
+    items:
+      D1: 150 competency questions, >=40% paraphrase, hubs, Div C, Act, SB
+      D2: agent-task evaluation — multi-step, scored on scoping + provisions + citations + refusal
+      D3: modality accuracy vs 200-sentence human sample, >=98%
+      D4: building-official review — 30 questions, 20 scoping cases, 50 labels
+    gates:
+    - R3
+    - R7
+    - R8b
+    - D2
+    exit_criteria:
+    - keep the SHA-256 split, dev-only tuning, no-shared-content-word constraint
+    - D4 requires a human outside this system; if unavailable, D3 stays PLANNED and the accuracy claim stays unquantified
+    effort: 1 week
+  C:
+    title: Identity and portability
+    status: ready
+    depends_on:
+    - PORT
+    produces:
+    - schema/identifiers.md
+    - retrieval/lib/eli.py
+    - query/duckpgq/ or query/age/
+    items:
+      C1: ELI-convention HTTP URIs via w3id.org; internal B/9/... keys become a mapping
+      C2: DuckPGQ (SQL/PGQ) or Apache AGE surface alongside SQLite. Not Kùzu (archived Oct 2025)
+    gates:
+    - C1
+    - C2
+    effort: 1 week
+    parallel_with:
+    - A2
+    - A4
+    - E
+  E:
+    title: Data fidelity and gap-register closure
+    status: ready
+    depends_on:
+    - PORT
+    items:
+      E1: header-row flagging (0 of 320 tables)
+      E2: row-boundary defect (9.30.3.1 collapses a logical row)
+      E3: 20-grid round-trip with perturbation control
+      E4: page 728 Volume 1 — 7 orphaned body lines, first real capture residual
+      E5: 173 Volume 2 externals; H4 controls for 629 + 363 absence claims
+      E6: 313 figure assets; 44 compliance-alternative rows; 13 notes-to-table
+      E7: check22_docs scope -> reports/*.md; reconcile ROADMAP.md, GATED_STATUS.md
+      E8: check8_build needs the v9 baseline PDF — ship it or retire the check
+    gates:
+    - T1
+    - T2
+    - T3
+    - T4
+    - T5
+    exit_criteria:
+    - E5 absence claims need H4 controls: a detector reporting zero must be shown to report presence on a seeded fixture
+    effort: 2 weeks
+    parallel_with:
+    - A2
+    - A4
+    - C
+  FOBJ:
+    title: Objectives and functional statements
+    status: blocked
+    depends_on:
+    - FSCOPE
+    produces:
+    - retrieval/stage23_objectives.py
+    - ATTRIBUTED_TO_OBJECTIVE edges
+    gates:
+    - O1
+    - O2
+    effort: 2 weeks
+  FRULES:
+    title: Compliance checking — LegalRuleML / RASE
+    status: conditional
+    depends_on:
+    - D
+    - FOBJ
+    condition: 'DECISION REQUIRED: assist or judge? Scoping lets the agent help with design; compliance checking lets it pass
+      judgement on one. The second carries liability the first does not. Do not start without an explicit answer.
+
+      '
+    gates:
+    - C1
+    - C2
+    - C3
+    - C4
+    effort: 4 weeks+
+  MAINT:
+    title: Amendment diff pipeline
+    status: ready
+    depends_on:
+    - PORT
+    produces:
+    - tools/diff_editions.py
+    exit_criteria:
+    - re-run on a modified source, diff the graph, review only what changed
+    - 144 amendment records + AmendmentEvent model are the foundation; the diff is the missing piece
+    effort: 2 weeks
+    note: start during C/E, not after FRULES; the next amendment lands regardless
+  ENFORCE:
+    title: Claude Code enforcement layer — hooks, settings, skills, agent specs, MCP
+    status: done
+    depends_on:
+    - A2
+    produces:
+    - .claude/hooks/{protect-checks,guard-commit-and-corpus,gate-complete,decision-guard}.sh + _input.py (fail-closed)
+    - .claude/settings.json (19 denies, 4 hook groups)
+    - .claude/skills/* (5)
+    - .claude/agents/{build,verify,embed}-track.md
+    - .mcp.json + obc:// resources and prompts
+    - CLAUDE.md
+    - ci/fetch_sources.sh
+    - check38_capabilities.py
+    gates:
+    - CI1
+    - CI2
+    - G2c
+    evidence: 'AUDIT-rev5.md; 16/16 hook cases correct incl. fail-closed on garbage input; gate-complete blocks a broken registry
+      and passed a green tree only after regenerate; check38 PASS; MCP tools+resources+prompts listed and read; rebag skill
+      script verified. Claude Code itself was NOT run - hooks are verified as scripts, not as invoked by the host. 2026-09-08:
+      embedding stack installed (CPU-only torch); R1/R3/R5 executed for the first time and PASS; stage19_embed reproduced
+      vectors_sha256 bit-for-bit on a different machine and torch build; fetch_data.sh rewritten to consume the shipped tarball
+      and tested over HTTP incl. a corrupted-archive abort.'
+    executor_note: 'First action in Claude Code: run one trivial track with the hooks live and confirm each fires. Nothing
+      here is proven under the host until then.'
+decisions_pending:
+- id: DEC1
+  question: Compliance checking — assist or judge?
+  blocks:
+  - FRULES
+  - G4 refusal-set design
+- id: DEC2
+  question: Will this leave the organisation? (external exposure)
+  affects:
+  - C urgency
+  - RO-Crate depth
+  - MMAH + NRC permission
+- id: DEC3
+  question: B/11/11.5.1.1 at 11,830 tokens — per-table row cap for hubs, or accept and document?
+  blocks: []
+- id: DEC4
+  question: Two days of a building official?
+  blocks:
+  - D3
+  - D4
+  - FSCOPE S3

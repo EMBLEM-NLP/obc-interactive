@@ -1,0 +1,100 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(python3 *)",
+      "Bash(bash ci/*)",
+      "Bash(bash retrieval/run.sh*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "mcp__obc__*"
+    ],
+    "deny": [
+      "Edit(pipeline/checks/**)",
+      "Write(pipeline/checks/**)",
+      "Edit(harden/checks/**)",
+      "Write(harden/checks/**)",
+      "Edit(retrieval/checks/**)",
+      "Write(retrieval/checks/**)",
+      "Edit(verify/**/checks/**)",
+      "Write(verify/**/checks/**)",
+      "Edit(pipeline/**/checks/**)",
+      "Write(pipeline/**/checks/**)",
+      "Edit(ci/checks.yaml)",
+      "Edit(ci/run_gates.py)",
+      "Edit(ci/regenerate.sh)",
+      "Edit(.claude/hooks/**)",
+      "Edit(.claude/settings.json)",
+      "Read(**/301880.pdf)",
+      "Read(**/301881.pdf)",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-checks.sh\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/decision-guard.sh\"",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-commit-and-corpus.sh\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gate-complete.sh\"",
+            "timeout": 1800
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gate-complete.sh\"",
+            "timeout": 1800
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\"",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}

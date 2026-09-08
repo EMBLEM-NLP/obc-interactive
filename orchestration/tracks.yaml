@@ -4,7 +4,7 @@ meta:
   registry: harden/checks/check35_controls.py
   bag_validator: harden/checks/check21_bagit.py
   provenance_validator: harden/checks/check26_provenance.py
-  updated: '2026-09-07'
+  updated: '2026-09-08'
 tracks:
   A1:
     title: Integrate the remediation pack
@@ -334,7 +334,12 @@ tracks:
       script verified. Claude Code itself was NOT run - hooks are verified as scripts, not as invoked by the host. 2026-09-08:
       embedding stack installed (CPU-only torch); R1/R3/R5 executed for the first time and PASS; stage19_embed reproduced
       vectors_sha256 bit-for-bit on a different machine and torch build; fetch_data.sh rewritten to consume the shipped tarball
-      and tested over HTTP incl. a corrupted-archive abort.'
+      and tested over HTTP incl. a corrupted-archive abort. 2026-09-08, Claude Code web, first observation under the host
+      (AUDIT-rev6.md): guard-commit fired and blocked git commit without .regen.stamp; the Edit(harden/checks/**) deny blocked
+      an edit to check35 before any hook ran; decision-guard did NOT block an Edit flipping FRULES to ready, nor an Edit
+      deleting DEC1 - it parses new_string as a whole document, and a partial Edit never carries the tracks or
+      decisions_pending keys it inspects. Under the host: 1 guard enforcing, 1 enforced by the deny list, 1 FAILED OPEN.
+      Host status stays unverified for gate-complete (blocked once on the missing database, then allowed on retry).'
     executor_note: 'First action in Claude Code: run one trivial track with the hooks live and confirm each fires. Nothing
       here is proven under the host until then.'
 decisions_pending:

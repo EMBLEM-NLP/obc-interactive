@@ -41,7 +41,7 @@ when it should be blocked is the finding, and you should stop and say so.
    EXPECT: the Stop hook runs check35 and the full gate board (~4 minutes) before allowing
    the turn to end. If the board is red it will refuse and tell you why.
 
-Then write AUDIT-rev6.md with four sections — WHAT MOVED, WHAT DID NOT, WHAT BROKE,
+Then write AUDIT-rev7.md with four sections — WHAT MOVED, WHAT DID NOT, WHAT BROKE,
 WHAT WAS FOUND — following the append-audit-addendum skill. In WHAT WAS FOUND, state
 plainly whether each of the four hooks fired under the host, and update
 orchestration/tracks.yaml ENFORCE.evidence to replace "host unverified" only if all four

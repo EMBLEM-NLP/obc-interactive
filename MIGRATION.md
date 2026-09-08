@@ -75,7 +75,7 @@ Open Claude Code in the repository and paste the prompt in `BOOTSTRAP.md`. Do no
 
 Then `@build-track` with the prompt "Track: ENFORCE-SMOKE — add one line to `orchestration/PROTOCOL.md` under Rules noting that hooks were observed firing on <date>, run the seven steps, and stop." Watch the `SubagentStop` hook run. Confirm `.claude/skills/*` were loaded (Claude will cite them) and `mcp__obc__capabilities` returns the computed `cannot` list.
 
-**Proves:** the enforcement layer works under the host. This is the boundary between "migrated" and "ready for autonomous execution." Record the observation in `AUDIT-rev6.md`; until then, `tracks.yaml` `ENFORCE.evidence` correctly says *scripts verified, host unverified*.
+**Proves:** the enforcement layer works under the host. This is the boundary between "migrated" and "ready for autonomous execution." Record the observation in `AUDIT-rev7.md`; until then, `tracks.yaml` `ENFORCE.evidence` correctly says *scripts verified, host unverified*.
 
 ### 6. A4, supervised — 3–5 days
 ```

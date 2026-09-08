@@ -98,7 +98,33 @@ def gate_defs():
                     text += " " + t
                 else:
                     break
-            out.setdefault(gid, {"mark": mark, "text": " ".join(text.split()), "ledger": rel})
+            out.setdefault(gid, {"mark": mark, "text": " ".join(text.split()),
+                                 "ledger": rel, "src": "ledger"})
+
+    # A ledger is not the only place a gate is written down. A2 states CI1 and
+    # CI2 as single-key mappings in its exit_criteria, and the first version of
+    # this parser read only ledgers and therefore reported them - and G2c -
+    # as "defined nowhere, and this one is a defect". That was a false
+    # accusation on the page, and the third verification in this project to fail
+    # for its own reasons rather than for its subject's (see AUDIT-rev12 finding
+    # 2, rev13 WHAT BROKE 1). A checker that indicts the tree for its own blind
+    # spot is worse than no checker, because the instinct is to go and "fix" the
+    # thing it accused.
+    #
+    # These are still a real and narrower gap, and the board says so: stated in
+    # the DAG, but with no CHECK:/EXPECT:/EVIDENCE: triple, so whoever receives
+    # the bag cannot re-run them the way they can re-run H1 or G5.
+    try:
+        doc = yaml.safe_load(open(os.path.join(PKG, "orchestration", "tracks.yaml")))
+    except (OSError, ValueError):
+        return out
+    for tid, t in (doc.get("tracks") or {}).items():
+        for x in (t.get("exit_criteria") or []):
+            if isinstance(x, dict):
+                for gid, text in x.items():
+                    out.setdefault(str(gid), {"mark": "?", "text": " ".join(str(text).split()),
+                                              "ledger": f"tracks.yaml &rarr; {tid}.exit_criteria",
+                                              "src": "dag"})
     return out
 
 
@@ -471,8 +497,12 @@ def render(tracks_path=None):
     missing = {g: v for g, v in known.items() if not v}
     # A gate of a DONE track with no ledger is a different animal from a gate of
     # a track that has not started: step 1 has already happened for the former.
-    orphan = {g: ref[g] for g in missing if any(derived[t][0] == "done" for t in ref[g])}
-    pending = {g: ref[g] for g in missing if g not in orphan}
+    # A gate with a script but no prose is a third case: something runs, and
+    # nothing anywhere says what passing it would mean.
+    wired_only = {g: ref[g] for g in missing if GWIRE.get(g)}
+    orphan = {g: ref[g] for g in missing
+              if g not in wired_only and any(derived[t][0] == "done" for t in ref[g])}
+    pending = {g: ref[g] for g in missing if g not in orphan and g not in wired_only}
     # Two tracks naming one gate is usually correct: the track that introduces a
     # gate and a later track that must not regress it both declare it, and those
     # two are on the same dependency chain. It is only ambiguous when the tracks
@@ -506,14 +536,19 @@ def render(tracks_path=None):
       'where the promise is written down, and PROTOCOL step 1 says a track declares its gates '
       '<em>before</em> writing code. Hover any gate on a card above to read it there.</p>')
     A(f'<div class=scroll><table><tr><th>gate</th><th>what it asserts</th>'
-      f'<th>ledger</th><th>mark</th><th>on the CI board</th></tr>')
+      f'<th>written down in</th><th>mark</th><th>on the CI board</th></tr>')
     for g in sorted(defined):
         for i in defined[g]:
             d = GDEFS[i]
-            mk = {"x": "met", "~": "malformed", " ": "not met"}.get(d["mark"], d["mark"])
+            mk = {"x": "met", "~": "malformed", " ": "not met",
+                  "?": "&mdash;"}.get(d["mark"], d["mark"])
             wired = ", ".join(mono(os.path.basename(x)) for x in GWIRE.get(i.split("-")[0], [])) or "&mdash;"
+            where = (mono(d["ledger"]) if d["src"] == "ledger"
+                     else f'{d["ledger"]}<br><span class=held style="margin:0">'
+                          f'stated in the DAG, no CHECK/EXPECT/EVIDENCE triple &mdash; '
+                          f'not re-runnable from the bag</span>')
             A(f'<tr><td class=num>{mono(i)}</td><td>{e(d["text"])}</td>'
-              f'<td class=num>{mono(d["ledger"])}</td><td>{mk}</td><td>{wired}</td></tr>')
+              f'<td class=num>{where}</td><td>{mk}</td><td>{wired}</td></tr>')
     A("</table></div>")
 
     if pending:
@@ -524,6 +559,19 @@ def render(tracks_path=None):
         A('<div class=scroll><table><tr><th>gate</th><th>declared by</th></tr>')
         for g in sorted(pending):
             A(f'<tr><td class=num>{mono(g)}</td><td class=num>{", ".join(mono(x) for x in pending[g])}</td></tr>')
+        A("</table></div>")
+
+    if wired_only:
+        A(f'<h3 style="margin-top:30px;font-size:15px">A script runs it; nothing says what it '
+          f'asserts ({len(wired_only)})</h3>')
+        A('<p class=sub style="margin:6px 0 12px">Wired in <code>ci/checks.yaml</code>, so the board '
+          'runs something and reports a colour, with no ledger entry and no line in the DAG stating '
+          'what passing it would mean. Green on a check proves the check ran.</p>')
+        A('<div class=scroll><table><tr><th>gate</th><th>declared by</th><th>what runs</th></tr>')
+        for g in sorted(wired_only):
+            A(f'<tr><td class=num>{mono(g)}</td>'
+              f'<td class=num>{", ".join(mono(x) for x in wired_only[g])}</td>'
+              f'<td class=num>{", ".join(mono(os.path.basename(x)) for x in GWIRE[g])}</td></tr>')
         A("</table></div>")
 
     if orphan:

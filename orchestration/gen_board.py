@@ -129,6 +129,15 @@ def gate_defs():
         for x in (t.get("exit_criteria") or []):
             if isinstance(x, dict):
                 for gid, text in x.items():
+                    # An exit criterion written as "E5 absence claims need H4
+                    # controls: ..." parses as a mapping whose KEY is the whole
+                    # sentence. Harvesting that produced glossary entries titled
+                    # "E5 absence claims need H4 controls" and "S4 (H10)" -
+                    # prose masquerading as ids. Only accept something shaped
+                    # like a gate id; the rest is an exit criterion that happens
+                    # to contain a colon, which is not the same thing.
+                    if not re.fullmatch(r"[A-Z]{1,4}[0-9][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*", str(gid)):
+                        continue
                     out.setdefault(str(gid), {"mark": "?", "text": " ".join(str(text).split()),
                                               "ledger": f"tracks.yaml &rarr; {tid}.exit_criteria",
                                               "src": "dag", "check": None})

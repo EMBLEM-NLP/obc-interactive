@@ -21,17 +21,9 @@ layer alone rather than assuming it.
   EXPECT: RESULT: PASS
   EVIDENCE: automatic-evidence=v1; definition-sha256=307b3809f7a383d00c629de33f1b89038c50ecc9a1a046c257bf79c785460ac6; exit=0; EXPECT=matched; output-sha256=83344684e66dbf754aee2975ae7463abb12ca51dc03366fcc7a52197411bf0f2; output-bytes=773; shell=/bin/sh; cwd=/home/claude/retrieval; path=2d5a7faa1724/9 entries
 
-- [~] R4: SUPERSEDED 2026-09-07 — retrieval returns complete mandatory context.
-  check33_completeness.py's metric is arithmetically incapable of failing:
-  bundle() unions in the exact refs|terms set dependencies() measures against
-  it, so dep & bundle(nid) == dep for every node (11680/11680 = 100.0000%
-  corpus-wide, independent of data). Moved to retrieval/checks/superseded/.
-  Replaced by R4a/R4b/R4c in gates/GATES-remediation.md, each carrying a
-  mutation in harden/checks/check35_controls.py that must drive it below
-  its floor. Do not re-enable this line as written.
-  CHECK: python3 checks/check33_completeness.py
-  EXPECT: RESULT: PASS
-  EVIDENCE: automatic-evidence=v1; definition-sha256=8ab780bbf29acfa29896bac46fd5323fd64152309645a34e380393ef7df5fc9d; exit=0; EXPECT=matched; output-sha256=0d6014a626a9c072fbfa484b71121328a3fa83a02ca972a18ce283fad7401a32; output-bytes=760; shell=/bin/sh; cwd=/home/claude/retrieval; path=2d5a7faa1724/9 entries
+- [ ] R4: retrieval returns complete mandatory context — every definition, table and note the answer depends on
+
+ABANDON: R4 SUPERSEDED 2026-09-07. check33_completeness.py's metric is arithmetically incapable of failing: bundle() unions in the exact refs|terms set dependencies() measures against it, so dep & bundle(nid) == dep for every node (11680/11680 = 100.0000% corpus-wide, independent of data). Moved to retrieval/checks/superseded/. Replaced by R4a/R4b/R4c in gates/GATES-remediation.md, each carrying a mutation in harden/checks/check35_controls.py that must drive it below its floor. No CHECK can decide a superseded outcome, so this gate carries none. The line removed with this edit read `CHECK: python3 checks/check33_completeness.py`, and its evidence digest (definition-sha256=8ab780bbf29a…, exit=0, EXPECT=matched) is preserved here rather than deleted: the pass proves nothing about the claim, and the record of a vacuous pass is the part worth keeping.
 
 - [x] R5: a negative control proves the eval harness can fail — a deliberately broken index must score near zero
   CHECK: python3 checks/check34_control.py

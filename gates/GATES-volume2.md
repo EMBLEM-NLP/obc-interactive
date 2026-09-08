@@ -16,16 +16,9 @@ so the 1,054 references that currently resolve to nothing are closed.
   EXPECT: RESULT: PASS
   EVIDENCE: automatic-evidence=v1; definition-sha256=105df8249507a949893deed157dd1e29c0d4a56629557230a4f398e859f72db0; exit=0; EXPECT=matched; output-sha256=f99be734de720da53e5c0347da06d66dd3631c5248f64a52a38f4578b3db91d7; output-bytes=325; shell=/bin/sh; cwd=/home/claude/obc2; path=2d5a7faa1724/9 entries
 
-- [~] V3: SUPERSEDED 2026-09-07 — Volume 2's structure is assembled into a node tree with no text dropped
-  The check behind this gate, check4_capture.py, could not fail: it compared
-  corpus-wide character multisets with a 71% surplus, and blanking 100% of
-  sentence text left orphaned at 0.140% < 0.5%. The evidence digest below is
-  real — the check ran and exited 0 — and proves nothing about capture.
-  Replaced by check4b_capture.py (per-page), controlled in check35. Do not
-  re-enable this line as written.
-  CHECK: python3 checks/check4b_capture.py
-  EXPECT: RESULT: PASS
-  EVIDENCE: automatic-evidence=v1; definition-sha256=fb69210e9f948ea1edfe1a6fc53104bd3ce316165bf86649f991bfc61d6697d1; exit=0; EXPECT=matched; output-sha256=a2f5fd8a148187279cca276065efa1566e28309a86b647314cf387149ee6e15f; output-bytes=113; shell=/bin/sh; cwd=/home/claude/obc2; path=2d5a7faa1724/9 entries
+- [ ] V3: Volume 2's structure is assembled into a node tree with no text dropped
+
+ABANDON: V3 SUPERSEDED 2026-09-07. The check behind this gate, check4_capture.py, could not fail: it compared corpus-wide character multisets with a 71% surplus, and blanking 100% of sentence text left orphaned at 0.140% < 0.5%. The evidence digest for that run is real — the check ran and exited 0 — and proves nothing about capture. Replaced by check4b_capture.py (per-page), controlled in check35. No CHECK can decide a superseded outcome, so this gate carries none. The line removed with this edit read `CHECK: python3 checks/check4b_capture.py`, and its evidence digest (definition-sha256=fb69210e9f94…, exit=0, EXPECT=matched) is preserved here rather than deleted: the pass proves nothing about the claim, and the record of a vacuous pass is the part worth keeping.
 
 - [x] V4: containers, Appendix A notes and Supplementary Standards are addressable
   CHECK: python3 checks/check12_vol2.py
@@ -41,8 +34,6 @@ so the 1,054 references that currently resolve to nothing are closed.
   CHECK: python3 checks/check14_crossvol.py
   EXPECT: RESULT: PASS
   EVIDENCE: automatic-evidence=v1; definition-sha256=4fd1be1bcb2e95d36b029da878332e558643466fe906ebe3a2ba2eabfbea79ea; exit=0; EXPECT=matched; output-sha256=40c5f864313675c4edfe295a9238532036c2203a91a0ce06ec5f2ebc10958a82; output-bytes=308; shell=/bin/sh; cwd=/home/claude/obc2; path=2d5a7faa1724/9 entries
-
-
 
 - [x] V7: Volume 2 is rebuilt as an interactive PDF from the merged model
   CHECK: python3 checks/check15_vol2build.py

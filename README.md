@@ -17,12 +17,27 @@ from one document model; nothing was hand-patched.
 
 | ledger | result |
 |---|---|
-| `gates/GATES-volume1.md` | **ALL MET (16 of 16)** |
-| `gates/GATES-volume2.md` | **ALL MET (7 of 7)** |
+| `gates/GATES-volume1.md` | **HANDOFF REQUIRED — 1 abandoned (15 of 16 met)** |
+| `gates/GATES-volume2.md` | **HANDOFF REQUIRED — 1 abandoned (6 of 7 met)** |
 | `gates/GATES-emitters.md` | **HANDOFF REQUIRED — 1 abandoned (4 of 5 met)** |
+| `gates/GATES-retrieval.md` | **HANDOFF REQUIRED — 1 abandoned (4 of 5 met)** |
 
-**This package is not "complete" without qualification.** Gate **E4** is
-abandoned, not met:
+The first two rows read **ALL MET (16 of 16)** and **ALL MET (7 of 7)** until
+2026-09-08. They were wrong from the moment G5 and V3 were struck as superseded
+on 2026-09-07, and `FACTS.json` — written by `harden/gen_readme.py` from these
+same ledgers — has recorded `met: 15` and `met: 6` ever since. The table said
+otherwise because `gen_readme.py` regenerates only the section between
+*What is still open* and *Licence and attribution*: this table is hand-maintained
+and was never updated. H3 (`check22_docs.py`) could not catch it either, because
+it tests only figures of three digits or more, and these counts are one and two
+digits. Corrected by hand here; the durable fix — generating this table from the
+measured counts, and lowering that threshold — is proposed in `AUDIT-rev12.md`
+and not yet applied.
+
+**This package is not "complete" without qualification.** Four gates are
+abandoned rather than met: **E4**, and **G5**, **V3** and **R4**, which were
+superseded because the checks behind them could not fail. Each carries an
+`ABANDON:` line in its ledger stating why. E4 is the one that needs a person:
 
 > Manual WCAG review — contrast, focus order, alt-text quality, and how a screen
 > reader actually reads a merged-cell table — cannot be decided by a command, and

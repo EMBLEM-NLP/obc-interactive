@@ -26,16 +26,9 @@ the previous hand-patched build.
   EXPECT: RESULT: PASS
   EVIDENCE: automatic-evidence=v1; definition-sha256=10824042256f2fba1cca376fd108c24f967cae1c7dfe53042c7b98c840b94a0f; exit=0; EXPECT=matched; output-sha256=1aef5377357cb9352af3d160a310d2747fb288ef78227c8e4f883abbe712b8b4; output-bytes=65; shell=/bin/sh; cwd=/home/claude/obc; path=2d5a7faa1724/9 entries
 
-- [~] G5: SUPERSEDED 2026-09-07 — content text lands in the node tree rather than being dropped
-  The check behind this gate, check4_capture.py, could not fail: it compared
-  corpus-wide character multisets with a 71% surplus, and blanking 100% of
-  sentence text left orphaned at 0.140% < 0.5%. The evidence digest below is
-  real — the check ran and exited 0 — and proves nothing about capture.
-  Replaced by check4b_capture.py (per-page), controlled in check35. Do not
-  re-enable this line as written.
-  CHECK: python3 checks/check4b_capture.py
-  EXPECT: RESULT: PASS
-  EVIDENCE: automatic-evidence=v1; definition-sha256=fb69210e9f948ea1edfe1a6fc53104bd3ce316165bf86649f991bfc61d6697d1; exit=0; EXPECT=matched; output-sha256=a994add824da28c6c7d05a3771bf0b445bd0ed9ed888aae1cad864d4b7b05c1c; output-bytes=113; shell=/bin/sh; cwd=/home/claude/obc; path=2d5a7faa1724/9 entries
+- [ ] G5: content text lands in the node tree rather than being dropped
+
+ABANDON: G5 SUPERSEDED 2026-09-07. The check behind this gate, check4_capture.py, could not fail: it compared corpus-wide character multisets with a 71% surplus, and blanking 100% of sentence text left orphaned at 0.140% < 0.5%. The evidence digest for that run is real — the check ran and exited 0 — and proves nothing about capture. Replaced by check4b_capture.py (per-page), controlled in check35. No CHECK can decide a superseded outcome, so this gate carries none. The line removed with this edit read `CHECK: python3 checks/check4b_capture.py`, and its evidence digest (definition-sha256=fb69210e9f94…, exit=0, EXPECT=matched) is preserved here rather than deleted: the pass proves nothing about the claim, and the record of a vacuous pass is the part worth keeping.
 
 - [x] G6: table cells tile their region and hold their text
   CHECK: python3 checks/check5_tables.py

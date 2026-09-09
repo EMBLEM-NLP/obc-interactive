@@ -18,7 +18,7 @@
 #
 #   bash ci/rebuild_all.sh              # everything
 #   bash ci/rebuild_all.sh --preflight  # only report whether a rebuild can work
-#   bash ci/rebuild_all.sh --from vol2  # resume at a phase
+#   bash ci/rebuild_all.sh --from vol2  # resume at a phase (v1|vol2|emitters|protect|retrieval)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PKG="$(pwd)"
@@ -54,25 +54,32 @@ say() { printf '\n=== %s ===\n' "$*"; }
 # reads as though the other two were checked.
 BLOCKERS=$(grep -rlE '(/home/claude|/mnt/user-data)' pipeline/vol2/*.py 2>/dev/null || true)
 
-# The SECOND blocker, and the larger one. Every stage writes into out/. Nothing
-# committed moves those artifacts to the paths data-manifest.json declares -
-# pdf/, model/, verify/data/v1, verify/data/v2 - and nothing encrypts anything.
-# The only encryption references in the tree are PDF_ENCRYPT_NONE, in the two
-# injectors, which write deliberately UNENCRYPTED files:
+# The SECOND blocker, ADDRESSED 2026-09-09 but not yet proven. Every stage writes
+# into out/; data-manifest.json declares pdf/, model/, emitters/ and
+# verify/data/. Nothing committed moved one to the other, and nothing encrypted
+# anything - the only encryption references in the tree were PDF_ENCRYPT_NONE,
+# in the two injectors, which write deliberately UNENCRYPTED masters.
 #
-#   pipeline/stage8b_inject.py:160        encryption=pymupdf.PDF_ENCRYPT_NONE
-#   pipeline/vol2/stage13_inject2.py:97   encryption=pymupdf.PDF_ENCRYPT_NONE
+# Two new pieces close it:
+#   pipeline/stage14_protect.py   applies the ministry permission set. Tested
+#                                 end to end on a synthetic PDF (--selftest),
+#                                 with a control proving its verifier rejects an
+#                                 unencrypted file.
+#   harden/place_artifacts.py     maps every one of the 29 declared paths to the
+#                                 stage output that fills it, and REFUSES to run
+#                                 if any declared path is unaccounted for.
 #
-# So the two *_protected.pdf files - AES-256 per README, 19,524,281 and
-# 27,629,429 bytes per the manifest - cannot be produced by any code in this
-# repository. harden/make_bag.py does not fill the gap: it shutil.copytree's a
-# tree that is already packaged.
+# Half of that map is marked INFERRED and has never run against a real out/,
+# because this clone has none. `--plan` prints it without moving anything; run
+# that first on a real rebuild and correct what is wrong. The map is a
+# specification recovered by reading the stages, not a tested tool.
 #
-# 24 of the 29 declared files are stage outputs that a placement step could move
-# into position. The 2 protected PDFs need an encryption step that has no
-# implementation here at all. Packaging was done by hand, or by something never
-# committed, and this is the first time anything has looked.
-PACKAGING_GAP=1
+# Measured while building it: encrypted PDFs are NOT byte-reproducible. Same
+# content, same password, different bytes every run, because PDF AES draws a
+# random IV. data-manifest.json's sha256 for the two protected files therefore
+# cannot be matched by any rebuild, ever. That is the format, not a defect - but
+# it means "29 of 29 identical" is not an achievable result and never was.
+PACKAGING_GAP="partial"
 
 preflight() {
   local bad=0
@@ -100,14 +107,15 @@ preflight() {
     echo "  Fix them under a track, with a gate (R7), before expecting a full rebuild."
     bad=2
   fi
-  if [ -n "${PACKAGING_GAP:-}" ]; then
-    echo "  No committed code places stage outputs at their shipped paths, and none"
-    echo "  encrypts a PDF. Stages write into out/; the manifest declares pdf/, model/"
-    echo "  and verify/data/. The only encryption in the tree is PDF_ENCRYPT_NONE, so"
-    echo "  the two *_protected.pdf files cannot be produced here by anything at all."
-    echo "  A rebuild can therefore regenerate the intermediates and still not populate"
-    echo "  the 29 declared paths. This is a gap in the repository, not in this script."
-    bad=2
+  if [ "${PACKAGING_GAP:-}" = "partial" ]; then
+    echo "  Packaging exists now but is unproven. pipeline/stage14_protect.py applies the"
+    echo "  permission set (tested on a synthetic PDF) and harden/place_artifacts.py maps"
+    echo "  all 29 declared paths to the outputs that fill them - but half that map is"
+    echo "  marked INFERRED and has never run against a real out/. Run"
+    echo "    python3 harden/place_artifacts.py --plan"
+    echo "  during the first real rebuild and correct any INFERRED line that is wrong."
+    echo "  Note also: encrypted PDFs are not byte-reproducible, so the manifest's sha256"
+    echo "  for the two protected files can never be matched. 27 of 29 is the ceiling."
   fi
   return $bad
 }
@@ -179,6 +187,16 @@ if [ "$FROM" = "emitters" ]; then
     python3 stage15_sqlite.py
     python3 stage16_markdown.py
     python3 stage17_html.py )
+  manifest_status
+  FROM=protect
+fi
+
+# --- Protect the built PDFs, then place everything --------------------------
+if [ "$FROM" = "protect" ]; then
+  say "applying the ministry permission set to the built PDFs"
+  python3 pipeline/stage14_protect.py
+  say "placing stage outputs at the paths data-manifest.json declares"
+  python3 harden/place_artifacts.py
   manifest_status
   FROM=retrieval
 fi

@@ -9,6 +9,7 @@ tracks:
   A1:
     title: Integrate the remediation pack
     status: done
+    plain: 'Folded in a batch of retrieval fixes that had been built separately: splitting definition blobs into individual terms, tagging whether a provision says must or may, and the first controls proving a check is able to fail.'
     depends_on: []
     produces:
     - retrieval/run.sh
@@ -31,6 +32,7 @@ tracks:
   A3:
     title: Mutation controls for every ratio-reporting check
     status: done
+    plain: 'Made every check that reports a percentage prove it can report a lower one. Three of them turned out to be incapable of failing at all - one was scoring a set against itself.'
     depends_on:
     - A1
     produces:
@@ -44,6 +46,7 @@ tracks:
   PORT:
     title: Path portability — every check runs from the bag
     status: done
+    plain: 'Rewrote file paths that only worked on the machine which built the package, so the checks run for anyone who receives it.'
     depends_on:
     - A3
     produces:
@@ -58,6 +61,7 @@ tracks:
   A2:
     title: CI — every gate runs on every commit
     status: done
+    plain: 'Put every check on an automated run that fires on each commit, with a board showing which passed, which failed and which could not run.'
     depends_on:
     - PORT
     consumes:
@@ -88,6 +92,7 @@ tracks:
   A4:
     title: Declared schema (LinkML) with constraints
     status: ready
+    plain: 'Write down what a valid provision and a valid link actually are, so malformed data is rejected rather than stored. Everything downstream waits on this.'
     depends_on:
     - PORT
     consumes:
@@ -120,6 +125,7 @@ tracks:
   B:
     title: Model correctness — fix at source, one re-embed
     status: blocked
+    plain: 'Fix three data defects at their source instead of hiding them when the data is read, then recompute the search vectors once rather than three times.'
     depends_on:
     - A4
     consumes:
@@ -163,6 +169,7 @@ tracks:
   G:
     title: Agent surface hardening
     status: blocked
+    plain: 'Make the question-answering layer honest: better search, and a measured rate of confident answers it should have refused to give.'
     depends_on:
     - B
     consumes:
@@ -202,6 +209,7 @@ tracks:
   FSCOPE:
     title: Applicability — occupancy, predicates, APPLIES_TO, obc_scope
     status: blocked
+    plain: 'Work out which parts of the Code apply to a given building, and state plainly which questions it did not consider.'
     depends_on:
     - G
     consumes:
@@ -239,6 +247,7 @@ tracks:
   D:
     title: Measurement
     status: blocked
+    plain: 'Measure how right the answers are, against questions and judgements from someone who does this work for a living.'
     depends_on:
     - FSCOPE
     produces:
@@ -269,6 +278,7 @@ tracks:
   C:
     title: Identity and portability
     status: ready
+    plain: 'Give every provision a permanent web address that will still resolve in ten years, and add a second way to query the graph alongside the database.'
     depends_on:
     - PORT
     produces:
@@ -294,6 +304,7 @@ tracks:
   E:
     title: Data fidelity and gap-register closure
     status: ready
+    plain: 'Close the known gaps in the captured data - tables, figures, references pointing at provisions this edition does not contain - and make the documentation describe the tree a reader actually has.'
     depends_on:
     - PORT
     items:
@@ -311,7 +322,12 @@ tracks:
         only, and vol2/ and emitters/ have no entry point at all. Its preflight finds three
         vol2 stages hard-wiring a build-machine path with no argv or env override, so a full
         rebuild cannot complete in any clone. Staged workflow rebuild-data.yml runs it from
-        the source secrets and compares every file against its recorded sha256. Two blockers found:
+        the source secrets and compares every file against its recorded sha256. Two blockers found;
+        one is now addressed but unproven -- stage14_protect.py applies the permission set (tested on a
+        synthetic PDF, with a control) and place_artifacts.py maps all 29 declared paths and refuses if
+        any is unaccounted for, though half that map is INFERRED and has never run against a real out/.
+        MEASURED while building it: encrypted PDFs are not byte-reproducible, so the manifest sha256 for
+        the two protected files can never be matched by any rebuild -- 27 of 29 is the ceiling. Remaining:
         three vol2 stages hard-wire a build-machine path, and NO committed code places stage
         outputs at their shipped paths or encrypts a PDF - the only encryption in the tree is
         PDF_ENCRYPT_NONE, so the two *_protected.pdf files cannot be produced here at all.'
@@ -354,6 +370,7 @@ tracks:
   FOBJ:
     title: Objectives and functional statements
     status: blocked
+    plain: 'Link each provision to the safety objective it exists to serve, so a reader can ask why a rule is there.'
     depends_on:
     - FSCOPE
     produces:
@@ -371,6 +388,7 @@ tracks:
   FRULES:
     title: Compliance checking — LegalRuleML / RASE
     status: conditional
+    plain: 'Decide whether a building complies. Not started and not startable until a person answers whether this system may judge rather than assist.'
     depends_on:
     - D
     - FOBJ
@@ -392,6 +410,7 @@ tracks:
   MAINT:
     title: Amendment diff pipeline
     status: ready
+    plain: 'When Ontario amends the Code, compare the new graph against the old one so a reviewer reads only what changed instead of the whole thing.'
     depends_on:
     - PORT
     produces:
@@ -423,6 +442,7 @@ tracks:
   ENFORCE:
     title: Claude Code enforcement layer — hooks, settings, skills, agent specs, MCP
     status: done
+    plain: 'Built the guard layer - rules that refuse an edit to a check - so nothing can quietly alter the thing that grades its own work.'
     promotes:
     - from: proposed/ENFORCE/check42_produces.py
       to: harden/checks/check42_produces.py

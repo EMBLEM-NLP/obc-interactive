@@ -132,6 +132,10 @@ The measured ledger table — which ledger, how many met, how many abandoned —
 in `PACKAGE.md`, beside the artifact counts it belongs with. `FACTS.json` holds
 the same numbers as data. `gates/` holds the ledgers themselves.
 
+## How Emblem uses this repository
+
+The active work branch is `claude/project-handoff-100m0j`; `main` is the stable promotion target. See `UTILIZATION.md` for the branch policy, hydration model, local operating loop, human decisions, backlog, and promotion criteria.
+
 ## Working in this repository
 
 `orchestration/tracks.yaml` is the DAG and `python3 orchestration/schedule.py`

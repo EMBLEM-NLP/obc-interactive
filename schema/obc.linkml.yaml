@@ -10,7 +10,7 @@ description: >-
   Enumerations are transcribed from the shipped pipeline, cited per value in
   the `src` annotation. Nothing here was inferred from a database: this schema
   was authored in a data-less clone, and `check36_schema.py` is what confronts
-  it with the 27,421 nodes.
+  it with the emitted nodes.
 license: https://creativecommons.org/licenses/by/4.0/
 prefixes:
   linkml: https://w3id.org/linkml/
@@ -49,8 +49,8 @@ enums:
       act_subsection:         {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
       act_clause:             {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
       act_subclause:          {annotations: {role: provision, src: "pipeline/stage3_tree.py"}}
-      table:                  {annotations: {role: other, src: "pipeline/stage5_bind.py:82"}}
-      defined_term:           {annotations: {role: other, src: "retrieval/stage18_definitions.py:267"}}
+      table:                  {annotations: {role: other, src: "pipeline/stage5_bind.py"}}
+      defined_term:           {annotations: {role: other, src: "retrieval/stage18_definitions.py"}}
       index_entry:            {annotations: {role: other, src: "pipeline/stage3_tree.py"}}
       index_subentry:         {annotations: {role: other, src: "pipeline/stage3_tree.py"}}
 
@@ -66,28 +66,31 @@ enums:
       inherits Edge.dst by construction. Adding a relation any other way — a new
       slot on Node, a second edge class, a sidecar table — fails validation
       because every class in this schema is closed.
-      Ten values: the nine citation kinds of the stage7 grammar plus `term`.
+      Eleven values: the nine citation kinds of the stage7 grammar, `term`, and
+      the table-to-provision `forms_part_of` relation emitted from stage5 data.
     permissible_values:
       code_ref: {description: "citation to a Code provision",
-                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:71"}}
-      cap_ref:  {description: "prose citing a Table or Figure. NOT a table's own binding — see Table.forms_part_of",
-                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:72"}}
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
+      cap_ref:  {description: "prose citing a Table or Figure. NOT a table's own binding — see forms_part_of",
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       act_ref:  {description: "citation to the Building Code Act, 1992",
-                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:73"}}
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       short:    {description: "short-form Act citation, s. / ss.",
-                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py:74"}}
+                 annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       note:     {description: "Appendix A explanatory note",
-                 annotations: {reverse: explains, dst_optional: "true", src: "pipeline/stage7_refs.py:75"}}
+                 annotations: {reverse: explains, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       supp:     {description: "Supplementary Standard SA/SB/SC",
-                 annotations: {reverse: applied_by, dst_optional: "true", src: "pipeline/stage7_refs.py:76"}}
+                 annotations: {reverse: applied_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       form:     {description: "Volume 2 Form",
-                 annotations: {reverse: used_by, dst_optional: "true", src: "pipeline/stage7_refs.py:77"}}
+                 annotations: {reverse: used_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       ca:       {description: "compliance-alternative row",
-                 annotations: {reverse: alternative_for, dst_optional: "true", src: "pipeline/stage7_refs.py:78"}}
+                 annotations: {reverse: alternative_for, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       std:      {description: "referenced standard, Table 1.3.1.2",
-                 annotations: {reverse: referenced_by, dst_optional: "true", src: "pipeline/stage7_refs.py:79"}}
-      term:     {description: "use of a defined term. DEFECT 2 IS CLOSED HERE: term usage is an EdgeKind, not a separate table. See Edge.",
-                 annotations: {reverse: used_in, dst_optional: "false", src: "pipeline/stage7_refs.py:205 and retrieval/stage18_definitions.py:289"}}
+                 annotations: {reverse: referenced_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
+      term:     {description: "use of a defined term. Term usage is an EdgeKind, not a separate semantic relation class.",
+                 annotations: {reverse: used_in, dst_optional: "false", src: "pipeline/stage7_refs.py and retrieval/stage18_definitions.py"}}
+      forms_part_of: {description: "a Table forms part of the provision named by its printed caption",
+                 annotations: {reverse: has_forming_part, dst_optional: "false", src: "pipeline/stage5_bind.py and pipeline/emitters/stage15_sqlite.py"}}
 
   Resolution:
     description: >-
@@ -105,7 +108,7 @@ enums:
       compliance_alternative_row: {annotations: {resolved: "false"}}
 
   Modality:
-    description: "Deontic force of a text-bearing leaf. retrieval/stage20_modality.py:44"
+    description: "Deontic force of a text-bearing leaf. retrieval/stage20_modality.py"
     permissible_values:
       prohibition: {}
       obligation: {}
@@ -147,7 +150,7 @@ slots:
   kind:       {range: EdgeKind, required: true}
   resolution: {range: Resolution, required: true}
   text:       {description: "the citing surface string, verbatim"}
-  chunk:      {description: "'*' for the joined body, gN for grid cell N"}
+  chunk:      {description: "'*' for joined body, 'h' for a heading, gN for grid cell N"}
   span_start: {range: integer}
   span_end:   {range: integer}
   forms_part_of: {range: Provision, multivalued: true}
@@ -209,17 +212,12 @@ classes:
     annotations:
       closed: "true"
       defect: >-
-        DEFECT 1 IS CLOSED HERE. In pipeline/stage5_bind.py:81-83 the binding
-        stated by the caption ("Forming Part of Sentences 9.23.2.8.(1)") is
-        written into TWO fields of the same node — `parent = target or pid` and
-        `forming_part_of = target` — so `parent` means "the provision this table
-        forms part of" when the caption parsed and "the Part that physically
-        contains it" when it did not, and a consumer reading either field alone
-        is wrong for a different subset of tables. Here `parent` is narrowed to
-        StructuralContainer, which is disjoint from Provision, so the binding is
-        not expressible in `parent` at all; `forms_part_of` is the sole
-        representation, and it is multivalued because a caption may name several
-        sentences. There is no third place to put it: the class is closed.
+        DEFECT 1 IS CLOSED HERE. `parent` is structural containment and is
+        narrowed to StructuralContainer, which is disjoint from Provision.
+        A printed "Forming Part of" caption therefore cannot be encoded in
+        parent; `forms_part_of` is the sole table-to-provision binding and the
+        SQLite projection carries it as an Edge with kind=forms_part_of. The
+        binding is multivalued because a caption may name several provisions.
     slots: [forms_part_of]
     slot_usage:
       type:   {range: NodeType, equals_string: table}
@@ -235,7 +233,7 @@ classes:
   DefinedTerm:
     is_a: Node
     annotations: {closed: "true"}
-    description: "One definition, split out of a 17 KB blob by retrieval/stage18_definitions.py."
+    description: "One definition, split out of a large definition blob by retrieval/stage18_definitions.py."
     slot_usage:
       type: {range: NodeType, equals_string: defined_term}
       body: {required: true}
@@ -254,18 +252,12 @@ classes:
     annotations:
       closed: "true"
       defect: >-
-        DEFECT 2 IS CLOSED HERE. The shipped emitters split one relation across
-        three tables — `ref` (stage15_sqlite.py:52), `term` (:57) and
-        `term_resolved` (stage18_definitions.py:289) — so "what does this
-        provision depend on" is a UNION every consumer must remember to write
-        (obc_context.py:233-234) and a `has_table('term_resolved')` fallback
-        every consumer must remember to branch on (obc_context.py:268), while
-        the reverse direction is two hand-written queries
-        (obc_agent_tools.py:154 and :178). One class carries all ten kinds. A
-        `term` edge is an Edge with kind=term; there is no TermEdge, no `terms`
-        slot on Node, and no resolved-copy class — resolution is a slot, so an
-        edge cannot exist twice in two states. The unique key makes the
-        duplicate literally unrepresentable.
+        DEFECT 2 IS CLOSED HERE. Relation semantics converge on one Edge class:
+        ordinary citations, defined-term uses, and table-to-provision bindings
+        differ by Edge.kind rather than by ad-hoc semantic carriers. The current
+        SQLite schema still has transitional `term`/`term_resolved` storage;
+        model correctness work removes that storage split without changing the
+        declared relation vocabulary.
     slots: [src, dst, kind, resolution, text, chunk, span_start, span_end]
     unique_keys:
       one_edge_per_span:
@@ -288,10 +280,18 @@ classes:
       - title: R3_cap_ref_is_never_a_binding
         description: >-
           A cap_ref points from prose TO a table. A Table is never the src of a
-          cap_ref; if it were, that would be defect 1 re-entering through the
-          edge table after being closed on the node.
+          cap_ref merely to encode its own binding; table binding uses the
+          forms_part_of edge kind instead.
         preconditions: {slot_conditions: {kind: {equals_string: cap_ref}}}
         postconditions: {slot_conditions: {src: {range: Node, none_of: [{range: Table}]}}}
+      - title: R4_forms_part_of_is_table_to_provision
+        description: "forms_part_of is the explicit table binding, never prose citation or containment."
+        preconditions: {slot_conditions: {kind: {equals_string: forms_part_of}}}
+        postconditions:
+          slot_conditions:
+            src: {range: Table, required: true}
+            dst: {range: Provision, required: true}
+            resolution: {equals_string: exact}
 
   Cell:
     annotations: {closed: "true"}

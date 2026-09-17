@@ -11,8 +11,6 @@
 #   gate:    the gate id(s) this check backs, for the board
 #   superseded: true = kept for history, never executed
 
-# the two fetch-only source PDFs, carried by hash so a bag built in CI records
-# what they must be without having them (identical to harden/make_bag.py)
 sources:
   - {url: "https://www.publications.gov.on.ca/store/20170501121/Free_Download_Files/301880.pdf", size: 16626790, rel: data/source/301880.pdf,
      sha256: 023c0af21eaa707ee19fc8a56f92a69c71d0a1253ff3199d4168a9ceb97af958,
@@ -129,6 +127,13 @@ checks:
     args: [--db, "$PKG/emitters/obc-mod.sqlite"]
     gate: S0
     note: validates all emitted node types and edge kinds against the closed schema
+
+  # ---- model correctness / Track B ----
+  - script: harden/checks/check42_model_refactor.py
+    scope: harden
+    gate: B0
+    no_data: true
+    note: synthetic control for table binding, retrieval projection, heading refs, deterministic metadata, and Python syntax
 
   # ---- enforcement ----
   - {script: ci/test_hooks.sh, scope: ., gate: E1, no_data: true, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}

@@ -8,6 +8,7 @@ __pycache__/
 verify/*/out/
 pipeline/emitters/out/
 ci/gate-board.json
+assets/figures-v1/
 /tmp/
 # stage18's intermediate; retrieval/run.sh recreates it from obc-vec.sqlite
 emitters/obc-defs.sqlite

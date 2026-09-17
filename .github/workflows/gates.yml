@@ -28,6 +28,8 @@ jobs:
           key: hf-${{ hashFiles('requirements.txt') }}
       - name: release installer is falsifiable
         run: python3 ci/test_release_installer.py
+      - name: control-plane runner is falsifiable
+        run: python3 ci/test_control_plane.py
       - name: hooks are falsifiable
         run: bash ci/test_hooks.sh
       - name: DAG consistency
@@ -44,13 +46,13 @@ jobs:
       - name: note that the data fetch was skipped
         if: ${{ env.HAS_DATA != 'true' }}
         run: |
-          echo "::warning title=Data fetch skipped::No OBC release manifest or legacy data URL/tarball secret is set. The board will run its data-independent gates and fail at DATA1."
+          echo "::warning title=Corpus gates not evaluated::No OBC release manifest or legacy data URL/tarball secret is set. CI will run the explicit control-plane board only."
           {
             echo "### Derived data fetch skipped"
             echo
             echo "No \`OBC_RELEASE_MANIFEST\`, \`OBC_DATA_URL\`, or \`OBC_DATA_TARBALL\` secret is configured, so the derived corpus was not fetched."
             echo
-            echo "The board runs its data-independent checks, then fails at **DATA1**. That is the correct outcome rather than a false green."
+            echo "CI will run the **control-plane board only**. DATA1 and all corpus-dependent gates will be recorded as not evaluated/skipped; the ordinary full board remains fail-closed when invoked without data."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: fetch Crown-copyright sources from secrets (URLs never enter agent context)
         env:
@@ -61,13 +63,19 @@ jobs:
         if: ${{ env.HAS_DATA == 'true' }}
         run: bash ci/regenerate.sh
       - name: gate board (full — includes the slow gates the Stop hook skips)
+        if: ${{ env.HAS_DATA == 'true' }}
         env: { OBC_CHECK_EMBED: "1" }
         run: python3 ci/run_gates.py
+      - name: gate board (control-plane — corpus unavailable)
+        if: ${{ env.HAS_DATA != 'true' }}
+        run: python3 ci/run_gates.py --control-plane
       - name: CI1 — the board must be able to go red
         run: python3 ci/run_gates.py --control
       - name: H10 — every ratio gate must be falsifiable
+        if: ${{ env.HAS_DATA == 'true' }}
         run: python3 harden/checks/check35_controls.py --db emitters/obc-mod.sqlite
       - name: G2 — the cannot list is computed and falsifiable
+        if: ${{ env.HAS_DATA == 'true' }}
         run: cd retrieval && python3 checks/check38_capabilities.py --db ../emitters/obc-mod.sqlite
       - uses: actions/upload-artifact@v4
         if: always()
@@ -82,8 +90,9 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             Read ci/gate-board.json. Post ONE PR comment via `gh pr comment ${{ github.event.pull_request.number }}`:
-            each FAIL and KNOWN gate with its check and result line; each SKIP with its reason;
-            the summary counts. Do not edit any file. Do not re-run anything.
+            state summary.mode first. If it is control-plane, explicitly say the hydrated corpus/full board was not evaluated.
+            Then list each FAIL and KNOWN gate with its check and result line; each SKIP with its reason;
+            and the summary counts. Do not edit any file. Do not re-run anything.
           claude_args: |
             --max-turns 6
             --permission-mode dontAsk

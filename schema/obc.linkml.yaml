@@ -4,13 +4,8 @@ title: Ontario Building Code document graph — declared schema
 description: >-
   The declared shape of the OBC document graph. Two jobs. (1) Close the type
   system: NodeType and EdgeKind are closed enums, so an undeclared type fails
-  validation instead of flowing silently into the emitters. (2) Make three
-  known dual-encoding defects UNREPRESENTABLE rather than merely discouraged —
-  see the `defect` annotations on Table.forms_part_of, Edge.kind and EdgeKind.
-  Enumerations are transcribed from the shipped pipeline, cited per value in
-  the `src` annotation. Nothing here was inferred from a database: this schema
-  was authored in a data-less clone, and `check36_schema.py` is what confronts
-  it with the emitted nodes.
+  validation instead of flowing silently into the emitters. (2) Make known
+  dual-encoding defects unrepresentable rather than merely discouraged.
 license: https://creativecommons.org/licenses/by/4.0/
 prefixes:
   linkml: https://w3id.org/linkml/
@@ -20,15 +15,11 @@ default_range: string
 imports:
   - linkml:types
 
-# ===========================================================================
-# ENUMS — closed. An unknown value is a validation error, which is the point.
-# ===========================================================================
 enums:
-
   NodeType:
     description: >-
-      Every node type the pipeline can emit. 23 values. `role` partitions them
-      into the three disjoint subclasses of Node; nothing may be both.
+      Every node type the pipeline can emit. `role` partitions them into the
+      three disjoint structural classes of Node.
     permissible_values:
       division:               {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
       part:                   {annotations: {role: container, src: "pipeline/stage3_tree.py"}}
@@ -57,21 +48,11 @@ enums:
   EdgeKind:
     description: >-
       Every relation the graph can carry between two nodes, other than
-      containment (Node.parent / Node.children, an inverse pair below).
-      DEFECT 3 IS CLOSED HERE. Every permissible value MUST carry a `reverse`
-      annotation naming the backward traversal, and every edge of every kind is
-      an instance of the single class Edge, whose `dst` slot is the reverse
-      index. There is therefore no way to add an edge kind without a reverse
-      path: a new kind can only be a new permissible value of this enum, and it
-      inherits Edge.dst by construction. Adding a relation any other way — a new
-      slot on Node, a second edge class, a sidecar table — fails validation
-      because every class in this schema is closed.
-      Eleven values: the nine citation kinds of the stage7 grammar, `term`, and
-      the table-to-provision `forms_part_of` relation emitted from stage5 data.
+      containment. Every permissible value carries a reverse traversal label.
     permissible_values:
       code_ref: {description: "citation to a Code provision",
                  annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
-      cap_ref:  {description: "prose citing a Table or Figure. NOT a table's own binding — see forms_part_of",
+      cap_ref:  {description: "prose citing a Table or Figure. NOT a table's own binding",
                  annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       act_ref:  {description: "citation to the Building Code Act, 1992",
                  annotations: {reverse: cited_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
@@ -87,16 +68,12 @@ enums:
                  annotations: {reverse: alternative_for, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
       std:      {description: "referenced standard, Table 1.3.1.2",
                  annotations: {reverse: referenced_by, dst_optional: "true", src: "pipeline/stage7_refs.py"}}
-      term:     {description: "use of a defined term. Term usage is an EdgeKind, not a separate semantic relation class.",
+      term:     {description: "use of a defined term",
                  annotations: {reverse: used_in, dst_optional: "false", src: "pipeline/stage7_refs.py and retrieval/stage18_definitions.py"}}
-      forms_part_of: {description: "a Table forms part of the provision named by its printed caption",
+      forms_part_of: {description: "a Table forms part of the Code provision level named by its printed caption",
                  annotations: {reverse: has_forming_part, dst_optional: "false", src: "pipeline/stage5_bind.py and pipeline/emitters/stage15_sqlite.py"}}
 
   Resolution:
-    description: >-
-      Why an Edge does or does not have a `dst`. One slot, one vocabulary. The
-      shipped `ref.reason` column and stage18's `term_resolved.how` column are
-      the same fact and collapse here.
     permissible_values:
       exact:            {annotations: {resolved: "true"}}
       other_division:   {annotations: {resolved: "true"}}
@@ -108,7 +85,6 @@ enums:
       compliance_alternative_row: {annotations: {resolved: "false"}}
 
   Modality:
-    description: "Deontic force of a text-bearing leaf. retrieval/stage20_modality.py"
     permissible_values:
       prohibition: {}
       obligation: {}
@@ -117,22 +93,17 @@ enums:
       statement: {}
 
   AmendmentKind:
-    description: "pipeline/stage9_amendments.py marker classes"
     permissible_values:
       amended: {}
       new: {}
       revoked: {}
       unchanged: {}
 
-# ===========================================================================
-# SLOTS
-# ===========================================================================
 slots:
   id:         {identifier: true, description: "citation-grammar node id, e.g. B/9/9.32.3.8/(1)/(a)"}
-  type:       {range: NodeType, required: true,
-               description: "closed. An undeclared value is a validation error — gate S0."}
+  type:       {range: NodeType, required: true}
   parent:     {range: Node, inverse: children,
-               description: "CONTAINMENT ONLY. Physical/structural position in the document tree. It is not a citation and it is never a binding."}
+               description: "CONTAINMENT ONLY. Physical/structural position in the document tree."}
   children:   {range: Node, multivalued: true, inverse: parent}
   volume:     {range: integer}
   number:     {}
@@ -143,52 +114,47 @@ slots:
   page:       {range: integer}
   bbox:       {range: float, multivalued: true, exact_mappings: [obc:bbox_x0y0x1y1]}
   permalink:  {range: uriorcurie}
-  modality:   {range: Modality,
-               description: "set only on Provision. retrieval/stage20_modality.py"}
+  modality:   {range: Modality}
   src:        {range: Node, required: true}
-  dst:        {range: Node, description: "absent iff the citation did not resolve; see Edge rule R1"}
+  dst:        {range: Node, description: "absent iff the citation did not resolve"}
   kind:       {range: EdgeKind, required: true}
   resolution: {range: Resolution, required: true}
   text:       {description: "the citing surface string, verbatim"}
   chunk:      {description: "'*' for joined body, 'h' for a heading, gN for grid cell N"}
   span_start: {range: integer}
   span_end:   {range: integer}
-  forms_part_of: {range: Provision, multivalued: true}
+  forms_part_of:
+    range: Node
+    multivalued: true
+    description: >-
+      Semantic table binding. Printed captions can name a Section, Subsection,
+      Article, Sentence, Clause or Subclause. The current hydrated corpus has
+      sentence, article and subsection targets; therefore this relation cannot
+      correctly be restricted to leaf Provision nodes alone.
+    annotations:
+      allowed_node_types: "section,subsection,article,sentence,clause,subclause,act_section,act_subsection,act_clause,act_subclause"
 
-# ===========================================================================
-# CLASSES — all closed. `closed: true` is asserted so check36 can verify that
-# no consumer has quietly widened one; a widened class is how an undeclared
-# edge kind gets in without touching EdgeKind.
-# ===========================================================================
 classes:
-
   DocumentGraph:
     tree_root: true
     annotations: {closed: "true"}
-    description: "The whole graph. Exactly two collections: nodes and edges."
     slots: []
     attributes:
       nodes:      {range: Node, multivalued: true, inlined_as_list: true, required: true}
       edges:      {range: Edge, multivalued: true, inlined_as_list: true, required: true}
       amendments: {range: Amendment, multivalued: true, inlined_as_list: true}
       current_to: {range: date, required: true}
-      through:    {required: true, description: "last amending instrument, e.g. O. Reg. 5/25"}
+      through:    {required: true}
 
   Node:
     abstract: true
     annotations: {closed: "true"}
-    description: >-
-      Base of the three disjoint subclasses. The only Node-ranged slots on this
-      class are `parent` and `children`, which are declared an inverse pair.
-      That is deliberate and is half of defect 3's closure: a relation cannot be
-      added as a new Node slot, because the class is closed.
     slots: [id, type, parent, children, volume, number, designator, heading,
             body, depth, page, bbox, permalink]
 
   StructuralContainer:
     is_a: Node
     annotations: {closed: "true"}
-    description: "type.role == container. Holds other nodes; carries no deontic force."
     slot_usage:
       type: {range: NodeType, any_of: [{equals_string: division}, {equals_string: part},
              {equals_string: contents}, {equals_string: section}, {equals_string: subsection},
@@ -199,7 +165,6 @@ classes:
   Provision:
     is_a: Node
     annotations: {closed: "true"}
-    description: "type.role == provision. A text-bearing leaf; the unit modality attaches to."
     slots: [modality]
     slot_usage:
       body: {required: true}
@@ -212,19 +177,15 @@ classes:
     annotations:
       closed: "true"
       defect: >-
-        DEFECT 1 IS CLOSED HERE. `parent` is structural containment and is
-        narrowed to StructuralContainer, which is disjoint from Provision.
-        A printed "Forming Part of" caption therefore cannot be encoded in
-        parent; `forms_part_of` is the sole table-to-provision binding and the
-        SQLite projection carries it as an Edge with kind=forms_part_of. The
-        binding is multivalued because a caption may name several provisions.
+        `parent` is structural containment and is narrowed to
+        StructuralContainer. A printed "Forming Part of" caption is encoded in
+        the separate `forms_part_of` relation, whose allowed target levels are
+        declared on that slot and enforced by check36 against the emitted DB.
     slots: [forms_part_of]
     slot_usage:
       type:   {range: NodeType, equals_string: table}
-      parent: {range: StructuralContainer, required: true,
-               description: "where the table physically sits. Never the binding."}
-      forms_part_of: {recommended: true,
-               description: "the provisions the caption declares this table forms part of. THE binding."}
+      parent: {range: StructuralContainer, required: true}
+      forms_part_of: {recommended: true}
     attributes:
       nrows: {range: integer}
       ncols: {range: integer}
@@ -233,14 +194,13 @@ classes:
   DefinedTerm:
     is_a: Node
     annotations: {closed: "true"}
-    description: "One definition, split out of a large definition blob by retrieval/stage18_definitions.py."
     slot_usage:
       type: {range: NodeType, equals_string: defined_term}
       body: {required: true}
-      heading: {required: true, description: "the term as printed"}
+      heading: {required: true}
     attributes:
-      norm: {required: true, description: "normalised lookup key"}
-      blob: {range: Node, required: true, description: "the clause the definition was split from"}
+      norm: {required: true}
+      blob: {range: Node, required: true}
 
   IndexEntry:
     is_a: Node
@@ -252,20 +212,14 @@ classes:
     annotations:
       closed: "true"
       defect: >-
-        DEFECT 2 IS CLOSED HERE. Relation semantics converge on one Edge class:
-        ordinary citations, defined-term uses, and table-to-provision bindings
-        differ by Edge.kind rather than by ad-hoc semantic carriers. The current
-        SQLite schema still has transitional `term`/`term_resolved` storage;
-        model correctness work removes that storage split without changing the
-        declared relation vocabulary.
+        Relation semantics converge on one Edge class. Ordinary citations,
+        defined-term uses, and table-to-provision bindings differ by Edge.kind.
     slots: [src, dst, kind, resolution, text, chunk, span_start, span_end]
     unique_keys:
       one_edge_per_span:
         unique_key_slots: [src, kind, chunk, span_start]
-        description: "an edge is identified by where it was written, so a resolved and an unresolved copy of the same citation cannot coexist"
     rules:
       - title: R1_resolved_iff_dst
-        description: "dst is present exactly when resolution says it resolved."
         preconditions:
           slot_conditions:
             resolution: {any_of: [{equals_string: exact}, {equals_string: other_division},
@@ -274,23 +228,21 @@ classes:
           slot_conditions:
             dst: {required: true}
       - title: R2_term_always_resolves_to_a_definition
-        description: "a term edge whose dst is not a DefinedTerm is the pre-stage18 blob defect."
         preconditions: {slot_conditions: {kind: {equals_string: term}}}
         postconditions: {slot_conditions: {dst: {range: DefinedTerm, required: true}}}
       - title: R3_cap_ref_is_never_a_binding
-        description: >-
-          A cap_ref points from prose TO a table. A Table is never the src of a
-          cap_ref merely to encode its own binding; table binding uses the
-          forms_part_of edge kind instead.
         preconditions: {slot_conditions: {kind: {equals_string: cap_ref}}}
         postconditions: {slot_conditions: {src: {range: Node, none_of: [{range: Table}]}}}
-      - title: R4_forms_part_of_is_table_to_provision
-        description: "forms_part_of is the explicit table binding, never prose citation or containment."
+      - title: R4_forms_part_of_is_table_to_declared_code_level
+        description: >-
+          Source is always a Table. Destination is validated by check36 against
+          the allowed_node_types annotation on the forms_part_of slot because
+          the printed caption can bind at container or leaf provision levels.
         preconditions: {slot_conditions: {kind: {equals_string: forms_part_of}}}
         postconditions:
           slot_conditions:
             src: {range: Table, required: true}
-            dst: {range: Provision, required: true}
+            dst: {range: Node, required: true}
             resolution: {equals_string: exact}
 
   Cell:
@@ -305,11 +257,9 @@ classes:
 
   Amendment:
     annotations: {closed: "true"}
-    description: "pipeline/stage9_amendments.py. Attaches to a node; does not relate two nodes, so it is not an Edge."
     attributes:
       node:       {range: Node, required: true}
       marker:     {}
       kind:       {range: AmendmentKind, required: true}
       instrument: {}
-      effective:  {range: date,
-                   description: "the date the instrument bears. NOT an in-force date — the graph cannot answer in-force, per obc://capabilities."}
+      effective:  {range: date}

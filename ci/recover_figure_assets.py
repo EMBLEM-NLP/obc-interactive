@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-"""Recover figure assets referenced by figures JSONL from a generated PDF.
+"""Recover and validate figure assets referenced by figures JSONL.
 
-The figure model records page + bounding box + output filenames. Earlier
-hydrated packages shipped the metadata but dropped pipeline/out/assets. This
-tool reconstructs those files from the generated PDF without needing the
-original transient pipeline directory.
+Earlier hydrated packages shipped figure metadata while dropping the transient
+pipeline/out/assets directory. This tool reconstructs the referenced files from
+the generated Volume 1 PDF and validates a packaged asset set.
 
-It accepts both legacy refs (out/assets/foo.png) and canonical package refs
-(assets/figures-v1/foo.png). Output filenames are always the basename of the
-reference; callers choose the destination directory.
-
-Raster records are recovered from their embedded image xref at native
-resolution. Vector records are regenerated as SVG plus a 300 dpi PNG preview
-from the recorded bounding box.
+Both legacy refs (out/assets/foo.png) and canonical package refs
+(assets/figures-v1/foo.png) are accepted. Recovered files are written by
+basename into the caller-supplied output directory.
 """
 
 from __future__ import annotations
@@ -28,7 +23,11 @@ import pymupdf
 
 
 def load_records(path: Path) -> tuple[dict, list[dict]]:
-    rows = [json.loads(line) for line in gzip.open(path, "rt", encoding="utf-8") if line.strip()]
+    rows = [
+        json.loads(line)
+        for line in gzip.open(path, "rt", encoding="utf-8")
+        if line.strip()
+    ]
     if not rows or not rows[0].get("_meta"):
         raise RuntimeError(f"{path} has no figure metadata header")
     return rows[0], rows[1:]
@@ -112,6 +111,7 @@ def recover(pdf_path: Path, metadata_path: Path, out_dir: Path) -> list[dict]:
 
             if not target.is_file() or target.stat().st_size == 0:
                 raise RuntimeError(f"recovered empty asset: {target}")
+
             manifest.append(
                 {
                     "path": canonical_ref(ref),
@@ -125,11 +125,21 @@ def recover(pdf_path: Path, metadata_path: Path, out_dir: Path) -> list[dict]:
             )
 
     doc.close()
-    lines = [f"{item['sha256']}  {Path(item['path']).name}" for item in manifest]
-    (out_dir / "MANIFEST.sha256").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    lines = [
+        f"{item['sha256']}  {Path(item['path']).name}" for item in manifest
+    ]
+    (out_dir / "MANIFEST.sha256").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
     (out_dir / "manifest.json").write_text(
         json.dumps(
-            {"schema_version": 1, "asset_set": "figures-v1", "count": len(manifest), "items": manifest},
+            {
+                "schema_version": 1,
+                "asset_set": "figures-v1",
+                "count": len(manifest),
+                "items": manifest,
+            },
             indent=2,
             sort_keys=True,
         )
@@ -139,6 +149,47 @@ def recover(pdf_path: Path, metadata_path: Path, out_dir: Path) -> list[dict]:
     return manifest
 
 
+def validate(metadata_path: Path, out_dir: Path) -> tuple[list[str], int]:
+    """Validate every metadata reference and the per-asset checksum manifest."""
+    _, records = load_records(metadata_path)
+    manifest_path = out_dir / "MANIFEST.sha256"
+    failures = []
+    hashes = {}
+
+    if manifest_path.is_file():
+        for line in manifest_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            digest, name = line.split(None, 1)
+            hashes[Path(name.strip()).name] = digest
+    else:
+        failures.append("missing assets/figures-v1/MANIFEST.sha256")
+
+    checked = 0
+    for record in records:
+        for ref in record.get("files") or []:
+            checked += 1
+            name = Path(ref).name
+            target = out_dir / name
+            if not target.is_file():
+                failures.append(f"missing {canonical_ref(ref)}")
+                continue
+            if target.stat().st_size == 0:
+                failures.append(f"empty {canonical_ref(ref)}")
+                continue
+            want = hashes.get(name)
+            if not want:
+                failures.append(f"checksum manifest missing {name}")
+            elif sha256(target) != want:
+                failures.append(f"sha256 mismatch {canonical_ref(ref)}")
+
+    extras = sorted(set(hashes) - {Path(ref).name for r in records for ref in (r.get("files") or [])})
+    for name in extras:
+        failures.append(f"unreferenced asset in checksum manifest: {name}")
+
+    return failures, checked
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf")
@@ -146,6 +197,7 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--validate-only", action="store_true")
     args = ap.parse_args()
+
     try:
         if args.validate_only:
             failures, checked = validate(Path(args.metadata), Path(args.out))
@@ -155,12 +207,14 @@ def main() -> int:
                 print(f"  {failure}")
             print("RESULT:", "PASS" if not failures else f"FAIL {len(failures)}")
             return 0 if not failures else 1
+
         if not args.pdf:
             raise RuntimeError("--pdf is required unless --validate-only is used")
         items = recover(Path(args.pdf), Path(args.metadata), Path(args.out))
     except Exception as exc:
         print(f"RESULT: FAIL - {exc}")
         return 1
+
     print(f"figure assets recovered : {len(items)}")
     print(f"output directory         : {args.out}")
     print("RESULT: PASS")

@@ -149,6 +149,13 @@ checks:
     no_data: true
     note: synthetic control proves missing and corrupted referenced figure assets turn validation red
 
+  # ---- figure geometry fidelity / E6b ----
+  - script: ci/test_figure_geometry.py
+    scope: .
+    gate: E6B
+    no_data: true
+    note: synthetic controls suppress ToC vector false positives while preserving real vector figures
+
   # ---- enforcement ----
   - {script: ci/test_hooks.sh, scope: ., gate: E1, no_data: true, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
   - script: harden/checks/check41_machinery.py

@@ -72,6 +72,20 @@ def materialise(scope, pkg):
         if os.path.exists(p):
             os.symlink(p, os.path.join(out, name))
 
+    # G7's metadata survives in verify/data, but its transient out/assets did
+    # not. Rehydrate the figure files from the generated PDF so the verifier
+    # tests real assets rather than an intentionally incomplete working set.
+    if scope == "volume1":
+        metadata = os.path.join(out, "figures.jsonl.gz")
+        pdf = os.path.join(pkg, "pdf", "301880_built_from_model.pdf")
+        if os.path.exists(metadata) and os.path.exists(pdf):
+            subprocess.run(
+                [sys.executable, os.path.join(pkg, "ci", "recover_figure_assets.py"),
+                 "--pdf", pdf, "--metadata", metadata,
+                 "--out", os.path.join(out, "assets")],
+                cwd=pkg, check=True, capture_output=True, text=True,
+            )
+
 
 def build_bag(pkg, bag):
     """Same logic as harden/make_bag.py; the two source hashes are carried from
@@ -307,6 +321,22 @@ def main():
     zipp = os.path.join(tmp, "obc-interactive.zip")
     sub["ZIP"] = zipp
     if any(c["script"].endswith("check19_package.py") for c in checks):
+        # Recreate the distributable figure assets from the generated PDF and
+        # model metadata before the ZIP is assembled. This closes E6 without
+        # requiring transient pipeline/out/assets to be stored in git or LFS.
+        fig_meta = os.path.join(a.pkg, "model", "figures-v1.jsonl.gz")
+        fig_pdf = os.path.join(a.pkg, "pdf", "301880_built_from_model.pdf")
+        fig_out = os.path.join(a.pkg, "assets", "figures-v1")
+        if os.path.exists(fig_meta) and os.path.exists(fig_pdf):
+            shutil.rmtree(fig_out, ignore_errors=True)
+            rr = subprocess.run(
+                [sys.executable, os.path.join(a.pkg, "ci", "recover_figure_assets.py"),
+                 "--pdf", fig_pdf, "--metadata", fig_meta, "--out", fig_out],
+                cwd=a.pkg, capture_output=True, text=True,
+            )
+            if rr.returncode != 0:
+                print(rr.stdout)
+                raise RuntimeError("figure asset recovery failed before package build")
         # The deliverable is named obc-interactive regardless of what the
         # checkout directory is called; check19 looks for obc-interactive/README.md.
         # Using the checkout's basename here failed G16d on any clone not literally
@@ -327,6 +357,7 @@ def main():
     shutil.rmtree(tmp, ignore_errors=True)
     for scope in sorted(pres):
         shutil.rmtree(os.path.join(a.pkg, "verify", scope, "out"), ignore_errors=True)
+    shutil.rmtree(os.path.join(a.pkg, "assets", "figures-v1"), ignore_errors=True)
 
     summary = dict(mode="full", data_available=True, ran=ran,
                    passed=sum(1 for b in board if b["status"] == "PASS"),

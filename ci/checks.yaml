@@ -110,6 +110,26 @@ checks:
     gate: H10
     slow: true
 
+  # ---- declared schema / A4 ----
+  - script: harden/checks/check36_schema.py
+    scope: harden
+    args: [--schema-only]
+    gate: S0b
+    no_data: true
+    note: schema self-validation; runs in data-less clones
+  - script: harden/checks/check36_schema.py
+    scope: harden
+    args: [--schema-only]
+    env: {NEGATIVE: "1"}
+    gate: S0a
+    no_data: true
+    note: negative control; must detect a deliberately removed reverse declaration
+  - script: harden/checks/check36_schema.py
+    scope: harden
+    args: [--db, "$PKG/emitters/obc-mod.sqlite"]
+    gate: S0
+    note: validates all emitted node types and edge kinds against the closed schema
+
   # ---- enforcement ----
   - {script: ci/test_hooks.sh, scope: ., gate: E1, no_data: true, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
   - script: harden/checks/check41_machinery.py

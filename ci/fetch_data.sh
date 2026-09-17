@@ -1,23 +1,43 @@
 #!/usr/bin/env bash
-# Fetch the derived binaries listed in data-manifest.json and verify each one.
+# Install the derived OBC corpus and verify it before use.
 #
-# The repo is ~400 KB of code; the data is ~323 MB and lives outside git - see
-# .gitattributes for why (no Git LFS). Three source modes, in the order you are
-# most likely to use them:
+# Preferred mode — immutable versioned release manifest:
+#
+#   OBC_RELEASE_MANIFEST=data/releases/obc-corpus-2024.2025-01-16.json \
+#   OBC_RELEASE_ARCHIVE=/path/to/obc-hydrated.zip \
+#     bash ci/fetch_data.sh
+#
+# If OBC_RELEASE_ARCHIVE is omitted, ci/install_release.py downloads flat assets
+# from OBC_RELEASE_BASE_URL or from artifact_base_url in the manifest.
+#
+# Legacy compatibility modes remain available while the current CI/data source
+# migrates to the release contract:
 #
 #   OBC_DATA_TARBALL=https://…/obc-interactive-data.tar.gz  bash ci/fetch_data.sh
 #   OBC_DATA_DIR=/path/to/a/full/tree                       bash ci/fetch_data.sh
 #   OBC_DATA_URL=https://…/releases/download/data-v1        bash ci/fetch_data.sh
 #
-# TARBALL is the normal case and matches the artifact this project ships. URL
-# mode expects one asset per file, named by replacing "/" with "__"
-# (emitters__obc-mod.sqlite), because release assets cannot contain slashes.
-#
-# Every file is checked against data-manifest.json before it is installed;
-# a mismatch aborts and leaves the tree untouched. Files already correct are
-# skipped, so this is cheap to re-run and safe in a cached CI step.
+# Every mode verifies all requested files before installing any of them. Files
+# already matching their manifest are skipped, so repeated installs are cheap.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [[ -n "${OBC_RELEASE_MANIFEST:-}" ]]; then
+  args=(--manifest "$OBC_RELEASE_MANIFEST")
+  if [[ -n "${OBC_RELEASE_ARCHIVE:-}" ]]; then
+    args+=(--archive "$OBC_RELEASE_ARCHIVE")
+  fi
+  if [[ -n "${OBC_RELEASE_BASE_URL:-}" ]]; then
+    args+=(--base-url "$OBC_RELEASE_BASE_URL")
+  fi
+  python3 ci/install_release.py "${args[@]}"
+  # The versioned release may intentionally differ from the legacy
+  # data-manifest.json snapshot. Its own manifest has already been verified;
+  # check40 remains authoritative once data-manifest.json is migrated to the
+  # same release version.
+  exit 0
+fi
+
 python3 - <<'PY'
 import json, os, sys, hashlib, shutil, tarfile, tempfile, urllib.request
 
@@ -26,7 +46,10 @@ tarball = os.environ.get("OBC_DATA_TARBALL")
 local   = os.environ.get("OBC_DATA_DIR")
 url     = os.environ.get("OBC_DATA_URL")
 if not (tarball or local or url):
-    sys.exit("set OBC_DATA_TARBALL, OBC_DATA_DIR, or OBC_DATA_URL (see the header of this script)")
+    sys.exit(
+        "set OBC_RELEASE_MANIFEST (preferred), or one of "
+        "OBC_DATA_TARBALL/OBC_DATA_DIR/OBC_DATA_URL"
+    )
 
 def sha(p):
     h = hashlib.sha256()
@@ -55,7 +78,6 @@ try:
             arc = tarball
         want = {r["path"] for r in need}
         with tarfile.open(arc) as tf:
-            # extract only what the manifest asks for, and never outside the tree
             for m in tf.getmembers():
                 name = m.name[2:] if m.name.startswith("./") else m.name
                 if name not in want or not m.isfile():
@@ -80,11 +102,12 @@ try:
             sys.exit(f"FAIL {r['path']}: not present in the source ({s})")
         got = sha(s)
         if got != r["sha256"]:
-            sys.exit(f"FAIL {r['path']}: sha256 {got[:12]} != manifest {r['sha256'][:12]} - refusing to install unverified data")
+            sys.exit(
+                f"FAIL {r['path']}: sha256 {got[:12]} != manifest "
+                f"{r['sha256'][:12]} - refusing to install unverified data"
+            )
         staged.append((r, s))
 
-    # verify everything before installing anything, so a bad archive cannot
-    # leave the tree half-updated
     for r, s in staged:
         os.makedirs(os.path.dirname(r["path"]) or ".", exist_ok=True)
         shutil.copyfile(s, r["path"] + ".part")

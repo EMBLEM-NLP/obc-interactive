@@ -6,7 +6,7 @@ manifest: every file present, every checksum matching, the required deliverables
 there, the PDFs openable and correctly protected, and the SQLite queryable.
 A package that lists what it contains but was never opened is not verified.
 """
-import sys, os, os, zipfile, hashlib, tempfile, sqlite3, shutil
+import sys, os, os, zipfile, hashlib, tempfile, sqlite3, shutil, subprocess
 import pymupdf
 
 ZIP = os.environ.get("OBC_ZIP", "../../obc-interactive.zip")
@@ -21,6 +21,8 @@ REQUIRED = [
     "obc-interactive/emitters/markdown.tar.gz",
     "obc-interactive/emitters/html.tar.gz",
     "obc-interactive/model/docgraph-merged.jsonl.gz",
+    "obc-interactive/model/figures-v1.jsonl.gz",
+    "obc-interactive/assets/figures-v1/MANIFEST.sha256",
     "obc-interactive/gates/GATES-volume1.md",
     "obc-interactive/gates/GATES-volume2.md",
     "obc-interactive/gates/GATES-emitters.md",
@@ -41,6 +43,18 @@ if missing: fails.append(f"missing: {missing}")
 tmp = tempfile.mkdtemp()
 z.extractall(tmp)
 root = os.path.join(tmp, "obc-interactive")
+fig = subprocess.run(
+    [sys.executable, os.path.join(root, "ci", "recover_figure_assets.py"),
+     "--metadata", os.path.join(root, "model", "figures-v1.jsonl.gz"),
+     "--out", os.path.join(root, "assets", "figures-v1"),
+     "--validate-only"],
+    capture_output=True, text=True,
+)
+fig_lines = [line for line in fig.stdout.splitlines() if line.strip()]
+fig_last = fig_lines[-1] if fig_lines else "(no figure validation output)"
+print(f"figure assets       : {fig_last}")
+if fig.returncode != 0:
+    fails.append("figure metadata references missing/corrupt packaged assets")
 man = {}
 for line in open(os.path.join(root, "MANIFEST.sha256")):
     if line.startswith("#") or not line.strip():

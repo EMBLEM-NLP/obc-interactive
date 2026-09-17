@@ -10,6 +10,8 @@ earlier link passes.
 import gzip, json, re, sys, time
 from collections import Counter, defaultdict
 
+from geometry_rules import allow_vector_figure_detection
+
 INV = sys.argv[1] if len(sys.argv) > 1 else "out/inventory.jsonl.gz"
 OUT = sys.argv[2] if len(sys.argv) > 2 else "out/geometry.jsonl.gz"
 
@@ -146,11 +148,12 @@ with gzip.open(OUT, "wt", encoding="utf-8") as fh:
         p = pg["page"]
         prims = [tuple(g["b"]) for g in pg["draws"] if not furniture(g, top_edge, bot_edge)]
         tables, figures = [], []
+        allow_vector_figures = allow_vector_figure_detection(pg)
         for comp in components(prims, pad=6):
             kind, bb = classify_component(comp)
             if kind == "table":
                 tables.append([round(v, 1) for v in bb])
-            elif kind == "figure":
+            elif kind == "figure" and allow_vector_figures:
                 figures.append([round(v, 1) for v in bb])
         for im in pg["images"]:                      # raster figures
             if not im["b"] or (im["w"], im["h"]) == LOGO:

@@ -135,6 +135,13 @@ checks:
     no_data: true
     note: synthetic control for table binding, retrieval projection, heading refs, deterministic metadata, and Python syntax
 
+  # ---- CI control-plane semantics ----
+  - script: ci/test_control_plane.py
+    scope: .
+    gate: CI3
+    no_data: true
+    note: control-plane mode must pass without corpus data, fail on a broken no_data gate, and leave full DATA1 fail-closed
+
   # ---- enforcement ----
   - {script: ci/test_hooks.sh, scope: ., gate: E1, no_data: true, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
   - script: harden/checks/check41_machinery.py

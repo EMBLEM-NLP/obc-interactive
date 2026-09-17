@@ -5,6 +5,7 @@ run_gates.py - execute every gate from the package, produce a board.
     python3 ci/run_gates.py                    # full board
     python3 ci/run_gates.py --fast             # skip checks marked slow
     python3 ci/run_gates.py --only H1 H4       # subset by gate id
+    python3 ci/run_gates.py --control-plane    # data-independent board only
     python3 ci/run_gates.py --control          # CI1: prove the board can go red
 
 Reads ci/checks.yaml for each check's execution context. Materialises the
@@ -16,6 +17,12 @@ It is never run, never counted as a pass, and never silently omitted - the
 board lists it. The exit code is non-zero if any executed gate fails or if any
 check that should have run could not be found. Skips do not affect exit code;
 they are visible, which is the point.
+
+--control-plane is an explicit partial-board mode for environments that do not
+have the externally distributed hydrated corpus. It runs only checks marked
+no_data: true, records every data-dependent gate as SKIP with a reason, and
+never invokes DATA1. This does NOT weaken the ordinary full board: without
+--control-plane, missing/corrupt data still fails closed at DATA1.
 
 CI1 (--control): seed a check that always fails into a copy of the manifest,
 run the board, require exit 1. A runner that cannot go red is a green light,
@@ -174,6 +181,8 @@ def main():
     ap.add_argument("--fast", action="store_true")
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--timeout", type=int, default=900)
+    ap.add_argument("--control-plane", action="store_true",
+                    help="run only no_data gates; record corpus-dependent gates as skipped")
     ap.add_argument("--control", action="store_true", help="CI1: seed a failing check, require red")
     a = ap.parse_args()
 
@@ -207,6 +216,15 @@ def main():
     if a.fast:
         checks = [c for c in checks if not c.get("slow")]
 
+    # Preserve the complete selected set so control-plane mode can make the
+    # omitted corpus gates explicit in gate-board.json instead of silently
+    # disappearing them. A green control-plane board means only that the
+    # control plane passed; it never implies that DATA1 or corpus gates ran.
+    control_plane_skips = []
+    if a.control_plane:
+        control_plane_skips = [c for c in checks if not c.get("no_data")]
+        checks = [c for c in checks if c.get("no_data")]
+
     board, fails, ran = [], 0, 0
     print(f"{'gate':<12}{'status':<8}{'secs':>6}  check / result")
     print("-" * 78)
@@ -223,6 +241,33 @@ def main():
         f, r = execute(early, a.pkg, base_env, sub, a.timeout, board)
         fails += f
         ran += r
+
+    if a.control_plane:
+        reason = "control-plane mode: derived corpus not provided; gate not evaluated"
+        for c in control_plane_skips:
+            gates = c["gate"] if isinstance(c["gate"], list) else [c["gate"]]
+            for g in gates:
+                board.append(dict(gate=g, check=c["script"], status="SKIP", exit=None,
+                                  result=reason, seconds=0.0, note=c.get("note")))
+            print(f"{','.join(gates):<12}{'SKIP':<8}{0.0:>6.1f}  "
+                  f"{os.path.basename(c['script'])}: {reason[:56]}")
+        summary = dict(mode="control-plane", data_available=False, ran=ran,
+                       passed=sum(1 for b in board if b["status"] == "PASS"),
+                       failed=fails,
+                       skipped=sum(1 for b in board if b["status"] == "SKIP"),
+                       known_review=sum(1 for b in board if b["status"] == "KNOWN"),
+                       generated=time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                              time.gmtime(int(base_env["SOURCE_DATE_EPOCH"]))))
+        json.dump(dict(summary=summary, gates=board), open(a.out, "w"), indent=1)
+        shutil.rmtree(tmp, ignore_errors=True)
+        print("-" * 78)
+        print(f"CONTROL-PLANE ONLY: {summary['skipped']} corpus-dependent gate records "
+              "were not evaluated.")
+        print(f"ran {ran} | passed {summary['passed']} | failed {fails} | "
+              f"known-review {summary['known_review']} | skipped {summary['skipped']}  "
+              f"-> {os.path.relpath(a.out, a.pkg)}")
+        print("RESULT:", "PASS" if fails == 0 else f"FAIL {fails} gate(s)")
+        sys.exit(0 if fails == 0 else 1)
 
     # Data first. materialise() copies emitters/*.sqlite and verify/data/* into
     # working sets; on a clone that never ran ci/fetch_data.sh those files do not
@@ -243,7 +288,7 @@ def main():
             board.append(dict(gate="DATA1", check="harden/checks/check40_dataintegrity.py",
                               status="FAIL", exit=d.returncode,
                               result=(d.stdout.strip().splitlines() or [""])[-1], seconds=0))
-            json.dump(dict(summary=dict(ran=ran + 1,
+            json.dump(dict(summary=dict(mode="full", data_available=False, ran=ran + 1,
                                         passed=sum(1 for b in board if b["status"] == "PASS"),
                                         failed=fails + 1,
                                         skipped=sum(1 for b in board if b["status"] == "SKIP"),
@@ -283,7 +328,8 @@ def main():
     for scope in sorted(pres):
         shutil.rmtree(os.path.join(a.pkg, "verify", scope, "out"), ignore_errors=True)
 
-    summary = dict(ran=ran, passed=sum(1 for b in board if b["status"] == "PASS"),
+    summary = dict(mode="full", data_available=True, ran=ran,
+                   passed=sum(1 for b in board if b["status"] == "PASS"),
                    failed=fails, skipped=sum(1 for b in board if b["status"] == "SKIP"),
                    known_review=sum(1 for b in board if b["status"] == "KNOWN"),
                    generated=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(base_env["SOURCE_DATE_EPOCH"]))))

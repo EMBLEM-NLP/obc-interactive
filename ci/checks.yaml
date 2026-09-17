@@ -45,7 +45,7 @@ checks:
     scope: verify/volume1
     pre: volume1
     gate: G7
-    known: "REVIEW from the bag: the 313 exported figure image files were never packaged (Track E6). Green in the build session only."
+    note: figure assets are rehydrated from the generated Volume 1 PDF + figures metadata before this check runs
   - {script: verify/volume1/checks/check7_refs.py,       scope: verify/volume1, pre: volume1, gate: G9}
   - script: verify/volume1/checks/check8_build.py
     scope: verify/volume1
@@ -141,6 +141,13 @@ checks:
     gate: CI3
     no_data: true
     note: control-plane mode must pass without corpus data, fail on a broken no_data gate, and leave full DATA1 fail-closed
+
+  # ---- figure asset packaging / E6 ----
+  - script: ci/test_figure_assets.py
+    scope: .
+    gate: E6A
+    no_data: true
+    note: synthetic control proves missing and corrupted referenced figure assets turn validation red
 
   # ---- enforcement ----
   - {script: ci/test_hooks.sh, scope: ., gate: E1, no_data: true, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}

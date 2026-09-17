@@ -46,8 +46,10 @@ for p in sorted(geo):
             des = below[0][1]
         elif above:
             des = above[-1][1]
-        stem = f"{OUTDIR}/p{p:04d}_{i}_{(des or 'unnamed').replace('/','-')}"
+        base = f"p{p:04d}_{i}_{(des or 'unnamed').replace('/','-')}"
+        stem = f"{OUTDIR}/{base}"
         kind, files = None, []
+        built_files = []
         if key in xrefs:
             kind = "raster"
             try:
@@ -55,7 +57,8 @@ for p in sorted(geo):
                 if pix.n - pix.alpha > 3:
                     pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
                 pix.save(stem + ".png")
-                files.append(stem + ".png")
+                built_files.append(stem + ".png")
+                files.append(f"{PACKAGE_PREFIX}/{base}.png")
             except Exception as e:
                 kind = "raster-failed"
         else:
@@ -68,7 +71,9 @@ for p in sorted(geo):
             open(stem + ".svg", "w").write(tmp[0].get_svg_image(text_as_path=False))
             tmp.close()
             page.get_pixmap(dpi=300, clip=clip).save(stem + ".png")
-            files += [stem + ".svg", stem + ".png"]
+            built_files += [stem + ".svg", stem + ".png"]
+            files += [f"{PACKAGE_PREFIX}/{base}.svg", f"{PACKAGE_PREFIX}/{base}.png"]
+        asset_bytes += sum(os.path.getsize(f) for f in built_files if os.path.exists(f))
         assets.append({"page": p, "region": i, "designator": des, "kind": kind,
                        "box": box, "forming_part_of": forming, "files": files})
 
@@ -81,5 +86,5 @@ c = Counter(a["kind"] for a in assets)
 named = sum(1 for a in assets if a["designator"])
 print(f"figure regions exported : {len(assets)}  {dict(c)}")
 print(f"  with a Figure caption : {named}")
-print(f"  bytes on disk         : {sum(os.path.getsize(f) for a in assets for f in a['files'])/1e6:.1f} MB")
+print(f"  bytes on disk         : {asset_bytes/1e6:.1f} MB")
 print(f"-> out/figures.jsonl.gz, out/assets/  {time.time()-t0:.0f}s")

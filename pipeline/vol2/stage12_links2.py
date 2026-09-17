@@ -3,7 +3,8 @@
 
 A citation whose target sits in the other volume becomes a remote GoTo, so
 "See Note A-3.1.2." in Volume 1 opens Volume 2 at that note, and an Appendix A
-note citing 9.10.16.1. opens Volume 1 at the article.
+note citing 9.10.16.1. opens Volume 1 at the article. References found in a
+structural heading use that node's heading provenance rectangle.
 """
 import gzip, json, re, sys, time
 import pymupdf
@@ -43,7 +44,7 @@ def rect_for(vol, page_no, line_bbox, text):
 
 t0 = time.time()
 out = {1: [], 2: []}
-stat = {"same": 0, "remote": 0, "no_rect": 0, "term": 0}
+stat = {"same": 0, "remote": 0, "no_rect": 0, "term": 0, "heading": 0}
 for nid, n in nodes.items():
     vol = n.get("volume", 1)
     for r in n.get("refs", []) + [{**t, "kind": "term", "text": t.get("term", ""),
@@ -64,7 +65,15 @@ for nid, n in nodes.items():
             tl = n["text"][li]
             rect = rect_for(vol, tl["p"], tl.get("b"), r["text"])
             pg = tl["p"]
+        elif r.get("chunk") == "h":
+            pv = (n.get("provenance") or [{}])[0]
+            pg = pv.get("page")
+            rect = rect_for(vol, pg, pv.get("bbox"), r["text"]) if pg else None
+            stat["heading"] += bool(rect)
         else:
+            # Grid-cell cross-volume links are not emitted by this stage yet;
+            # stage8 handles same-volume table-cell rectangles. Keep this
+            # explicit rather than misinterpreting a chunk id as a body line.
             continue
         if not rect:
             stat["no_rect"] += 1

@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "release": "obc-corpus-2024.2025-01-16",
+  "edition": "2024 Ontario Building Code",
+  "current_through": "2025-01-16",
+  "through_instrument": "O. Reg. 5/25",
+  "source_repository": "EMBLEM-NLP/obc-interactive",
+  "source_commit": "e376d1c11c68fa39b1e8fc63adfea0420afdd5bb",
+  "artifact_base_url": "https://github.com/EMBLEM-NLP/obc-interactive/releases/download/obc-corpus-2024.2025-01-16",
+  "notes": [
+    "Manifest describes the hydrated package rebuilt on 2026-09-17 from the official source PDFs and the repository pipeline.",
+    "Protected PDFs are content/permission reproducible but not byte reproducible because AES encryption uses random initialization data.",
+    "obc-vec.sqlite is intentionally absent from this release because the hydration environment did not include the vector embedding dependency stack."
+  ],
+  "artifacts": [
+    {
+      "asset": "301880_built_from_model.pdf",
+      "install_path": "pdf/301880_built_from_model.pdf",
+      "bytes": 18976041,
+      "sha256": "fa1acdb0639fa7621309b81ba93a9e06f77ac99896cdd50907dcb4a1d260b396",
+      "role": "linked-pdf-master-v1"
+    },
+    {
+      "asset": "301880_built_from_model_protected.pdf",
+      "install_path": "pdf/301880_built_from_model_protected.pdf",
+      "bytes": 38820942,
+      "sha256": "f679604f3fd2a3c92de51eba49af861dfac35c53d7f1927dfa557c78590b417e",
+      "role": "linked-pdf-protected-v1"
+    },
+    {
+      "asset": "301881_built_from_model.pdf",
+      "install_path": "pdf/301881_built_from_model.pdf",
+      "bytes": 27464904,
+      "sha256": "74b0485dda59bdcf1224a92861bc2bb00fa78f0303965816a56611dc03ffafd5",
+      "role": "linked-pdf-master-v2"
+    },
+    {
+      "asset": "301881_built_from_model_protected.pdf",
+      "install_path": "pdf/301881_built_from_model_protected.pdf",
+      "bytes": 42900571,
+      "sha256": "41443ff5fb74de0179f28b113c2e2183917f681cc73b6e7438b97b941d7f3cf1",
+      "role": "linked-pdf-protected-v2"
+    },
+    {
+      "asset": "obc.sqlite",
+      "install_path": "emitters/obc.sqlite",
+      "bytes": 62369792,
+      "sha256": "b5c1601080cf59f0da8e7b3992cb2e4657f09d47feb6bcc41407540d84f77716",
+      "role": "canonical-sqlite"
+    },
+    {
+      "asset": "obc-defs.sqlite",
+      "install_path": "emitters/obc-defs.sqlite",
+      "bytes": 65335296,
+      "sha256": "18ba31a72790571354ab332b1ff26f1678a77b1fdd610aafdf35864213a40d05",
+      "role": "definitions-sqlite"
+    },
+    {
+      "asset": "obc-mod.sqlite",
+      "install_path": "emitters/obc-mod.sqlite",
+      "bytes": 68644864,
+      "sha256": "da25dba8444c6f50837daa5b3710857505faa315341c94a5de6da5ab7ce8460f",
+      "role": "modality-sqlite"
+    },
+    {
+      "asset": "docgraph-merged.jsonl.gz",
+      "install_path": "model/docgraph-merged.jsonl.gz",
+      "bytes": 4405325,
+      "sha256": "1cf3049cf59f4dae490a447adae5f9635cb5123296caec93a4fb6c899cb420c6",
+      "role": "canonical-document-graph"
+    },
+    {
+      "asset": "tables-v1.jsonl.gz",
+      "install_path": "model/tables-v1.jsonl.gz",
+      "bytes": 658154,
+      "sha256": "5d1605f6b88ddb30ab4e6094737ad1602ebd73f9ab45368a39b08e579b15126d",
+      "role": "table-model"
+    },
+    {
+      "asset": "figures-v1.jsonl.gz",
+      "install_path": "model/figures-v1.jsonl.gz",
+      "bytes": 1563,
+      "sha256": "d9271815f071d94ae2c11d0a089434e73c834895e2ee07570177453f2e390537",
+      "role": "figure-model"
+    },
+    {
+      "asset": "pdf-links-v1.json.gz",
+      "install_path": "model/pdf-links-v1.json.gz",
+      "bytes": 761952,
+      "sha256": "7cda55107f12dbc93b9d2a204f7bbeb6d7512ce0b814a55a80964a5cb8a01e38",
+      "role": "pdf-link-map-v1"
+    },
+    {
+      "asset": "pdf-links-v2.json.gz",
+      "install_path": "model/pdf-links-v2.json.gz",
+      "bytes": 95181,
+      "sha256": "eadf30899c02384e382ef19c83637c7ba2d3686c989d42c72c7199d7fb8a35a3",
+      "role": "pdf-link-map-v2"
+    },
+    {
+      "asset": "markdown.tar.gz",
+      "install_path": "emitters/markdown.tar.gz",
+      "bytes": 1383642,
+      "sha256": "82e855f077c2cec5be1e2556814643f0a1a0a82379279cb525d937f0cb7869bc",
+      "role": "markdown-emitter"
+    },
+    {
+      "asset": "html.tar.gz",
+      "install_path": "emitters/html.tar.gz",
+      "bytes": 1585806,
+      "sha256": "0eba62898fda1fec2843bec84ded8d27b1a3f0d5eb76e0d6e84916fb2cc75216",
+      "role": "html-emitter"
+    },
+    {
+      "asset": "BUILD-NOTES.md",
+      "install_path": "release/BUILD-NOTES.md",
+      "bytes": 2472,
+      "sha256": "7ebe220ad4df71dd599c2095247e03680209a2e35d1eccc0f2f6aae04741ee27",
+      "role": "release-provenance"
+    },
+    {
+      "asset": "SHA256SUMS.txt",
+      "install_path": "release/SHA256SUMS.txt",
+      "bytes": 1313,
+      "sha256": "8703163b102fd65f1b7c8129170f4fcd48a42a1ad7de014a3ab8916caecdd213",
+      "role": "release-checksums"
+    }
+  ]
+}

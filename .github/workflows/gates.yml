@@ -1,10 +1,5 @@
 # Runs the full gate board on every push and pull request, then has Claude
 # summarise the board on the PR.
-#
-# STATUS: never executed. Written where no CI runner exists. ci/run_gates.py is
-# verified locally (CI1: seeded failure turns the board red; CI2: two clean
-# boards identical on all 38 gates). The trigger and the action step are not
-# verified until a hosted run is green. Do not call CI "live" before that.
 name: gates
 on: [push, pull_request]
 permissions: { contents: read, pull-requests: write, id-token: write }
@@ -13,11 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      # Job-level env MAY read secrets; a step-level `if:` may NOT - referencing
-      # `secrets` there is a parse-time failure ("Unrecognized named-value"),
-      # not a false-y evaluation, so it rejects the whole workflow. An unset
-      # secret resolves to the empty string here, which is what makes this work.
-      HAS_DATA: ${{ secrets.OBC_DATA_URL != '' || secrets.OBC_DATA_TARBALL != '' }}
+      # Job-level env MAY read secrets; a step-level `if:` may NOT reference
+      # secrets directly. Prefer the immutable release-manifest contract, while
+      # retaining the legacy data URL/tarball modes during migration.
+      HAS_DATA: ${{ secrets.OBC_RELEASE_MANIFEST != '' || secrets.OBC_DATA_URL != '' || secrets.OBC_DATA_TARBALL != '' }}
     steps:
       - uses: actions/checkout@v4
         # no lfs: true - the repo has no LFS objects by design (.gitattributes)
@@ -32,46 +26,37 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: hf-${{ hashFiles('requirements.txt') }}
-      # E1 needs no data, so it runs BEFORE the fetch. Runs 1 and 2 both died at
-      # the fetch with OBC_DATA_URL unset and skipped this, so two CI runs
-      # produced no gate result at all when one was available for free.
+      - name: release installer is falsifiable
+        run: python3 ci/test_release_installer.py
       - name: hooks are falsifiable
         run: bash ci/test_hooks.sh
-      # Reads only tracks.yaml. It sat after the data fetch and was therefore
-      # skipped in all ten runs to date, for want of data it never touches.
       - name: DAG consistency
         run: python3 orchestration/schedule.py --check
-      - name: fetch derived data (323 MB, verified against data-manifest.json)
+      - name: fetch derived data (manifest/hash verified)
         if: ${{ env.HAS_DATA == 'true' }}
         env:
+          OBC_RELEASE_MANIFEST: ${{ secrets.OBC_RELEASE_MANIFEST }}
+          OBC_RELEASE_ARCHIVE: ${{ secrets.OBC_RELEASE_ARCHIVE }}
+          OBC_RELEASE_BASE_URL: ${{ secrets.OBC_RELEASE_BASE_URL }}
           OBC_DATA_URL: ${{ secrets.OBC_DATA_URL }}
           OBC_DATA_TARBALL: ${{ secrets.OBC_DATA_TARBALL }}
         run: bash ci/fetch_data.sh
-      # A skipped step is not a passed one, and nothing about a red run says
-      # which. This makes the reason legible without touching the conclusion:
-      # annotations and summaries are advisory and never flip a job green.
       - name: note that the data fetch was skipped
         if: ${{ env.HAS_DATA != 'true' }}
         run: |
-          echo "::warning title=Data fetch skipped::No OBC_DATA_URL or OBC_DATA_TARBALL secret is set. The board will run its data-independent gates and fail at DATA1."
+          echo "::warning title=Data fetch skipped::No OBC release manifest or legacy data URL/tarball secret is set. The board will run its data-independent gates and fail at DATA1."
           {
             echo "### Derived data fetch skipped"
             echo
-            echo "No \`OBC_DATA_URL\` or \`OBC_DATA_TARBALL\` secret is configured, so the 323 MB of derived data was not fetched."
+            echo "No \`OBC_RELEASE_MANIFEST\`, \`OBC_DATA_URL\`, or \`OBC_DATA_TARBALL\` secret is configured, so the derived corpus was not fetched."
             echo
-            echo "The board runs E1 and E2, then fails at **DATA1**. That is the correct outcome rather than a broken run:"
-            echo "a gate that could not read its data has not passed."
+            echo "The board runs its data-independent checks, then fails at **DATA1**. That is the correct outcome rather than a false green."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: fetch Crown-copyright sources from secrets (URLs never enter agent context)
         env:
           OBC_PDF_URL_V1: ${{ secrets.OBC_PDF_URL_V1 }}
           OBC_PDF_URL_V2: ${{ secrets.OBC_PDF_URL_V2 }}
         run: bash ci/fetch_sources.sh
-      # Guarded on the same flag, and this is the part that makes the change
-      # work at all. ci/regenerate.sh refuses without data and exits 1, so
-      # leaving it unguarded keeps the board skipped even when the fetch above
-      # skips cleanly - moving the failure one step later without ever reaching
-      # DATA1, which is the outcome this whole guard exists to produce.
       - name: regenerate derived artifacts in dependency order
         if: ${{ env.HAS_DATA == 'true' }}
         run: bash ci/regenerate.sh
@@ -89,9 +74,6 @@ jobs:
         with:
           name: gate-board
           path: ci/gate-board.json
-          # A missing board must not read as a delivered one. The default
-          # (warn) let run 1 show this step green while logging "No files were
-          # found" - the board did not exist because the job died at the fetch.
           if-no-files-found: error
       - name: summarise the board on the PR
         if: github.event_name == 'pull_request'

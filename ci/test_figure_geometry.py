@@ -28,6 +28,10 @@ def page(lines):
 def main():
     failures = []
 
+    stage1 = (ROOT / "pipeline" / "stage1_geometry.py").read_text(encoding="utf-8")
+    if "allow_vector_figure_detection(pg)" not in stage1:
+        failures.append("stage1_geometry.py is not wired to the shared vector-figure guard")
+
     toc_lines = [
         line(f"3.1.{i}.  Topic .................................... {i}")
         for i in range(1, 18)

@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """Stage 5 - bind tables into the document graph.
 
-Each table becomes a node with a real cell grid, attached to the provision named
-in its "Forming Part of ..." line. That binding is the document's own statement
-of where the table belongs, so it is used rather than inferred from position.
+Each table becomes a node with a real cell grid. Physical containment and the
+caption's legal/document binding are deliberately separate:
+
+* ``parent`` is always the structural Part/container where the table appears;
+* ``forms_part_of`` is the provision named by the printed "Forming Part of ..."
+  caption, when one resolves.
+
+The previous implementation overloaded ``parent`` with the caption target. That
+made one field mean physical containment for some tables and semantic binding
+for others, and forced downstream consumers to guess which interpretation was
+in force. The schema now makes those concepts disjoint; the SQLite emitter turns
+``forms_part_of`` into an explicit relation edge.
 """
 import gzip, json, re, time
 from collections import Counter
@@ -50,7 +59,8 @@ for run in runs:
     if not des or not pid:
         stat["no part context"] += 1
         continue
-    # the caption block states where the table belongs
+    # The printed caption states which provision the table forms part of. This
+    # is a semantic relation, NOT the table's structural parent.
     target = None
     for b in inv[p0]["blocks"]:
         for l in b["l"]:
@@ -78,10 +88,13 @@ for run in runs:
             grid.append({"page": part["page"], "r": c["r"], "c": c["c"],
                          "rowspan": c["rowspan"], "colspan": c["colspan"],
                          "text": " ".join(x["t"] for x in c["lines"]).strip()})
-    parent = target or pid
+
+    # Physical containment is deterministic from the page/Part. The semantic
+    # caption binding gets its own field and later its own edge in SQLite.
+    parent = pid
     n = {"id": nid, "type": "table", "number": des, "heading": None,
          "parent": parent, "children": [], "text": [],
-         "forming_part_of": target, "pages": run["pages"],
+         "forms_part_of": target, "pages": run["pages"],
          "ncols": run["ncols"], "nrows": run["nrows"], "grid": grid,
          "provenance": [{"page": p, "bbox": pt["box"]}
                         for p, pt in zip(run["pages"], run["parts"])]}
@@ -101,6 +114,6 @@ with gzip.open("out/docgraph.jsonl.gz", "wt", encoding="utf-8") as fh:
         fh.write(json.dumps(nodes[nid], ensure_ascii=False) + "\n")
 
 print(f"tables added        : {bound + unbound}")
-print(f"  bound to the provision named in 'Forming Part of' : {bound}")
-print(f"  attached to their Part (no binding found)         : {unbound}")
+print(f"  caption binding resolved (forms_part_of) : {bound}")
+print(f"  no caption binding resolved               : {unbound}")
 print(f"nodes now: {len(nodes)}   {time.time()-t0:.0f}s")

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Stage 7 - citation grammar and resolver.
 
-ONE grammar, ONE resolver, applied to node text and table-cell text through the
-same code path. Every citation resolves to a node id or carries a reason code.
-Nothing is silently dropped, so the question stops being "did I think of this
-pattern?" and becomes "does the grammar cover this form?"
+ONE grammar, ONE resolver, applied to headings, node text and table-cell text
+through the same code path. Every citation resolves to a node id or carries a
+reason code. Nothing is silently dropped, so the question stops being "did I
+think of this pattern?" and becomes "does the grammar cover this form?"
 """
 import gzip, json, re, time
 from collections import Counter, defaultdict
@@ -123,6 +123,7 @@ def find_std(des, full=None):
 t0 = time.time()
 stat = Counter()
 spans_added = 0
+heading_refs = 0
 for nid, n in nodes.items():
     d = nid.split("/")[0]
     if d not in ("A", "B", "C"):
@@ -133,9 +134,20 @@ for nid, n in nodes.items():
             joined += " "
         omap.append((len(joined), len(joined) + len(tt["t"]), i))
         joined += tt["t"]
-    chunks = [("*", joined)] if joined else []
+
+    # A4/B3 fix: structural headings are document text too. Appendix-note
+    # references are often printed only in an Article/Subsection heading, so a
+    # body-only scanner missed them entirely. Use the SAME grammar/resolver as
+    # body and grid text; `chunk='h'` lets the PDF-link stage use the heading's
+    # provenance bbox rather than pretending it belongs to a body line.
+    chunks = []
+    if n.get("heading"):
+        chunks.append(("h", n["heading"]))
+    if joined:
+        chunks.append(("*", joined))
     if n.get("grid"):
         chunks += [(f"g{i}", c["text"]) for i, c in enumerate(n["grid"])]
+
     refs = []
     for idx, text in chunks:
         if not text:
@@ -169,7 +181,6 @@ for nid, n in nodes.items():
                     stat["skipped: another statute"] += 1
                     continue
                 tgt = act.get(m.group("act"))
-                # now that the Act is a tree, land on the subsection and clause
                 if tgt and m.group("asub") and f'{tgt}/({m.group("asub")})' in nodes:
                     tgt = f'{tgt}/({m.group("asub")})'
                     if m.group("acl") and f'{tgt}/({m.group("acl")})' in nodes:
@@ -197,6 +208,7 @@ for nid, n in nodes.items():
             refs.append({"chunk": idx, "line": ln, "s": m.start(), "e": m.end(),
                          "kind": kind, "text": m.group(0), "target": tgt, "why": why})
             spans_added += 1
+            heading_refs += (idx == "h")
     if refs:
         n["refs"] = refs
 
@@ -212,8 +224,6 @@ for nid, n in nodes.items():
                 continue
             hit = next((terms[c] for c in (key, key.rstrip("s"), key + "s",
                                            re.sub(r"ies$", "y", key)) if c in terms), None)
-            # dedupe per PAGE, not per node: a node can run for pages, and one
-            # link at its start leaves every later page dead
             pkey = (t["p"], key)
             if hit and hit["node"] != nid and pkey not in seen:
                 seen.add(pkey)
@@ -230,6 +240,7 @@ with gzip.open("out/docgraph.jsonl.gz", "wt", encoding="utf-8") as fh:
 
 print(f"index: clauses {sum(len(v) for v in by_num.values())} | tables "
       f"{sum(len(v) for v in tables.values())} | act {len(act)} | terms {len(terms)} | standards {len(std)}")
-print(f"citations found: {spans_added} | defined-term links: {term_hits} | {time.time()-t0:.0f}s\n")
+print(f"citations found: {spans_added} | heading citations: {heading_refs} | "
+      f"defined-term links: {term_hits} | {time.time()-t0:.0f}s\n")
 for k, v in stat.most_common():
     print(f"   {v:>6}  {k}")

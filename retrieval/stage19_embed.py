@@ -3,8 +3,8 @@
 
 FTS5 and the trigram index give exact and lexical matching. Neither reaches a
 provision whose wording does not overlap the question, which is the common case
-for a builder asking in their own words. This adds ~2,700 article-level vectors
-in the same SQLite file, to be fused with FTS5 by Reciprocal Rank Fusion.
+for a builder asking in their own words. This adds article-level vectors in the
+same SQLite file, to be fused with FTS5 by Reciprocal Rank Fusion.
 
 Two decisions worth stating:
   * ARTICLE level, not sentence. An article is the unit a builder cites and is
@@ -15,20 +15,27 @@ Two decisions worth stating:
     encoding, so "makeup air" carries "Heating, Ventilating and Air-Conditioning
     > Ventilation" into the vector rather than floating free.
 
-The model is a static embedding model: deterministic, CPU-only, no service
-dependency, so gate H1 (byte-identical rebuilds) still holds.
+Retrieval text is a projection, not the canonical page capture. Long parent
+bodies that duplicate a table are trimmed by the shared ownership rules in
+``retrieval/lib/text_projection.py``; the structured cell text is then added
+once. This prevents a table from dominating the embedding twice.
 """
-import os, argparse, os, sqlite3, sys, time, hashlib
+import os, argparse, sqlite3, sys, time, hashlib
 import numpy as np
 import sqlite_vec
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_HERE, "lib"))
+from text_projection import (  # noqa: E402
+    bound_table_ids,
+    projected_body,
+    table_text,
+)
+
 MODEL = os.environ.get("OBC_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
 class Encoder:
-    """A real transformer encoder run through ONNX Runtime - no torch, CPU only,
-    deterministic. A static embedding model was tried first (potion-retrieval-32M)
-    and reached only 2/9 on lexically disjoint questions; the contextual encoder
-    is the difference between a vector layer that earns its place and one that
-    does not."""
+    """A transformer encoder run through ONNX Runtime - CPU-only/deterministic."""
     def __init__(self, repo=MODEL):
         from transformers import AutoTokenizer
         from huggingface_hub import hf_hub_download
@@ -63,21 +70,39 @@ def scope_trail(db, nid):
     return " > ".join(p for p in parts if p)
 
 def article_text(db, nid, limit=1400):
-    """the article plus its sentences and clauses, in document order"""
+    """Build the retrieval projection for one article.
+
+    Descendant prose stays in document order. A long article/sentence body that
+    owns a structured table has only its non-duplicative prefix retained, and
+    the owning table cells are appended once from ``cell``.
+    """
     rows = db.execute("""
-        SELECT n.designator, n.heading, n.body FROM closure c
+        SELECT n.id, n.type, n.designator, n.heading, n.body
+        FROM closure c
         JOIN node n ON n.id = c.descendant
         WHERE c.ancestor = ? ORDER BY c.depth, n.rowid""", (nid,)).fetchall()
     out = []
-    for d, h, b in rows:
-        seg = " ".join(x for x in (d, h, b) if x).strip()
+    suppressed = 0
+    for node_id, node_type, designator, heading, body in rows:
+        safe_body, was_suppressed = projected_body(
+            db, node_id, node_type, body
+        )
+        suppressed += int(was_suppressed)
+        seg = " ".join(x for x in (designator, heading, safe_body) if x).strip()
         if seg:
             out.append(seg)
-    return " ".join(out)[:limit]
+
+    owned_tables = bound_table_ids(db, nid)
+    cells = table_text(db, owned_tables)
+    if cells:
+        out.append(cells)
+
+    text = " ".join(out)
+    return text[:limit], suppressed, len(owned_tables)
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "emitters", "obc.sqlite"))
+    ap.add_argument("--db", default=os.path.join(_HERE, "..", "emitters", "obc.sqlite"))
     ap.add_argument("--out", default="out/obc-vec.sqlite")
     ap.add_argument("--level", default="article")
     a = ap.parse_args()
@@ -93,10 +118,16 @@ def main():
         "SELECT id FROM node WHERE type=? ORDER BY id", (a.level,))]
     print(f"{a.level} nodes: {len(ids)}")
     docs = []
+    suppressed_nodes = 0
+    bound_tables = 0
     for nid in ids:
         trail = scope_trail(db, nid)
-        body = article_text(db, nid)
+        body, suppressed, tables = article_text(db, nid)
+        suppressed_nodes += suppressed
+        bound_tables += tables
         docs.append(f"{trail}\n{body}" if trail else body)
+    print(f"retrieval projection: suppressed flattened bodies on {suppressed_nodes} nodes; "
+          f"structured tables included {bound_tables}")
 
     t0 = time.time()
     model = Encoder(MODEL)
@@ -114,7 +145,8 @@ def main():
     db.execute("CREATE TABLE IF NOT EXISTS embed_meta (key TEXT PRIMARY KEY, value TEXT)")
     h = hashlib.sha256(b"".join(v.tobytes() for v in vecs)).hexdigest()
     for k, v in {"model": MODEL, "level": a.level, "dim": str(dim),
-                 "count": str(len(ids)), "context": "scope-trail prefix",
+                 "count": str(len(ids)),
+                 "context": "scope-trail + shared retrieval projection",
                  "vectors_sha256": h}.items():
         db.execute("INSERT OR REPLACE INTO embed_meta VALUES (?,?)", (k, v))
     db.commit()

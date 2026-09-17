@@ -7,13 +7,23 @@ index because unicode61 fragments clause numbers like 9.10.16.1. and SB-3.
 Hierarchy is an adjacency list plus a closure table - the corpus is read-heavy
 and near-static between editions, so the closure table is cheap and turns
 "all descendants" into an indexed join instead of a recursive CTE.
+
+Table containment and table binding are distinct. ``node.parent`` records only
+physical document containment; a table's printed "Forming Part of" relationship
+is emitted as a ``forms_part_of`` edge in ``ref``.
 """
-import os, sqlite3, json, os, sys, time
+import os, sqlite3, json, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from emit_common import (load_graph, permalink, node_text, designator,
                          CURRENT_TO_ISO, THROUGH, NOTICE, COPYRIGHT, LICENCE)
 
 OUT = "out/obc.sqlite"
+# Reproducible-build fallback used whenever a caller did not set
+# SOURCE_DATE_EPOCH. 2025-01-17 is the frozen package/build epoch already used
+# by ci/checks.yaml. Falling back to wall-clock time made a fresh local build
+# differ from the shipped SQLite for no semantic reason.
+DEFAULT_SOURCE_DATE_EPOCH = 1737072000
+
 t0 = time.time()
 nodes, order, meta = load_graph()
 if os.path.exists(OUT):
@@ -56,6 +66,7 @@ CREATE TABLE ref (
 );
 CREATE INDEX ref_src ON ref(src);
 CREATE INDEX ref_dst ON ref(dst);
+CREATE INDEX ref_kind ON ref(kind);
 
 CREATE TABLE term (
   src TEXT NOT NULL, dst TEXT NOT NULL, term TEXT NOT NULL
@@ -109,9 +120,25 @@ for nid in order:
         k += 1
 db.executemany("INSERT OR IGNORE INTO closure VALUES (?,?,?)", clos)
 
+# Citation edges parsed by stage7 plus explicit table-binding edges produced by
+# stage5. A table binding is not cap_ref: cap_ref is prose that cites a table;
+# forms_part_of goes in the opposite semantic direction, table -> provision.
 refs = [(nid, r.get("target"), r["kind"], r.get("text"), r.get("why"))
         for nid in order for r in nodes[nid].get("refs", [])]
+for nid in order:
+    n = nodes[nid]
+    if n.get("type") != "table":
+        continue
+    targets = n.get("forms_part_of")
+    if not targets:
+        continue
+    if not isinstance(targets, list):
+        targets = [targets]
+    for target in targets:
+        if target:
+            refs.append((nid, target, "forms_part_of", "Forming Part of", "exact"))
 db.executemany("INSERT INTO ref VALUES (?,?,?,?,?)", refs)
+
 terms = [(nid, t["target"], t["term"])
          for nid in order for t in nodes[nid].get("terms", [])]
 db.executemany("INSERT INTO term VALUES (?,?,?)", terms)
@@ -160,14 +187,16 @@ except sqlite3.OperationalError as e:
     tri = False
     print("trigram tokenizer unavailable:", e)
 
+source_epoch = int(os.environ.get("SOURCE_DATE_EPOCH", DEFAULT_SOURCE_DATE_EPOCH))
+generated = time.strftime("%Y-%m-%d", time.gmtime(source_epoch))
 for k, v in {"current_to": CURRENT_TO_ISO, "through": THROUGH,
              "notice": NOTICE, "copyright": COPYRIGHT, "licence": LICENCE,
-             "nodes": str(len(order)), "generated": time.strftime("%Y-%m-%d", time.gmtime(int(os.environ["SOURCE_DATE_EPOCH"])))
-                 if os.environ.get("SOURCE_DATE_EPOCH") else time.strftime("%Y-%m-%d")}.items():
+             "nodes": str(len(order)), "generated": generated}.items():
     db.execute("INSERT INTO meta VALUES (?,?)", (k, v))
 db.commit()
 db.executescript("PRAGMA journal_mode=DELETE; VACUUM; ANALYZE;")
 db.commit()
 print(f"nodes {len(order)} | closure {len(clos)} | refs {len(refs)} | "
       f"terms {len(terms)} | amendments {len(amds)} | cells {len(cells)}")
-print(f"trigram index: {tri} | {os.path.getsize(OUT)/1e6:.1f} MB | {time.time()-t0:.0f}s")
+print(f"trigram index: {tri} | generated {generated} | "
+      f"{os.path.getsize(OUT)/1e6:.1f} MB | {time.time()-t0:.0f}s")

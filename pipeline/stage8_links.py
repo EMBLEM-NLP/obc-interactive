@@ -2,8 +2,9 @@
 """Stage 8a - emit pdf-links.json from the model.
 
 Every link in the output PDF is derived from a resolved reference in the graph:
-source rectangle from the line bbox recorded in stage 3, destination from the
-target node's own provenance. Nothing is pattern-matched off the page here.
+source rectangle from the line/heading/cell bbox recorded by earlier stages,
+destination from the target node's own provenance. Nothing is pattern-matched
+off the page here.
 """
 import gzip, json, re, sys, time
 import pymupdf
@@ -55,7 +56,8 @@ def rect_for(page_no, line_bbox, text):
 
 t0 = time.time()
 links = []
-stat = {"ref": 0, "term": 0, "toc": 0, "no_rect": 0, "no_dest": 0}
+stat = {"ref": 0, "term": 0, "toc": 0, "no_rect": 0, "no_dest": 0,
+        "heading_ref": 0}
 
 # 1. citations and defined terms
 for nid, n in nodes.items():
@@ -75,6 +77,14 @@ for nid, n in nodes.items():
             tl = n["text"][r["line"]]
             rect = rect_for(tl["p"], tl.get("b"), r["text"])
             pg = tl["p"]
+        elif r["chunk"] == "h":
+            # Stage7 now scans structural headings with the same citation
+            # grammar. Their exact source rectangle is the node's first
+            # provenance bbox, created from the heading line in stage3.
+            pv = (n.get("provenance") or [{}])[0]
+            pg = pv.get("page")
+            rect = rect_for(pg, pv.get("bbox"), r["text"]) if pg else None
+            stat["heading_ref"] += bool(rect)
         else:                                    # a table cell
             gi = int(r["chunk"][1:])
             cell = n["grid"][gi]

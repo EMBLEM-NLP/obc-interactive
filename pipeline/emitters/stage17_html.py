@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """Emitter 3 - accessible HTML, built to WCAG 2.2 AA.
 
-The AODA (O. Reg. 191/11 s.14) mandates WCAG 2.0 AA for Ontario government web
-content; 2.2 is a superset and Ontario has signalled a transition, so building
-to 2.2 now is the forward-compatible choice. The specifics that matter for a
-legal code: a strict non-skipping heading hierarchy, scope= on simple tables and
-the id/headers pattern on merged-cell tables (scope alone cannot resolve a
-spanned header), a <caption> on every table, landmarks, a skip link, meaningful
-link text, and a two-part text alternative for every figure.
+Structural containment and semantic table binding are distinct. A table remains
+physically contained by its Part, but a table carrying ``forms_part_of`` is
+rendered beside the provision named by its caption. Unbound tables stay at their
+structural position.
 """
 import os, sys, json, re, html, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +17,17 @@ os.makedirs(OUTDIR, exist_ok=True)
 t0 = time.time()
 nodes, order, meta = load_graph()
 kids = {nid: nodes[nid]["children"] for nid in order}
+
+bound_tables = {}
+for tid in order:
+    t = nodes[tid]
+    if t.get("type") != "table" or not t.get("forms_part_of"):
+        continue
+    targets = t["forms_part_of"] if isinstance(t["forms_part_of"], list) else [t["forms_part_of"]]
+    for target in targets:
+        if target in nodes:
+            bound_tables.setdefault(target, []).append(tid)
+bound_ids = {tid for tids in bound_tables.values() for tid in tids}
 
 HEAD_LEVEL = {"division": 2, "part": 2, "appendix": 2,
               "supplementary_standard": 2, "act": 2,
@@ -93,7 +101,6 @@ def table_html(n):
             if c["rowspan"] > 1: a += f' rowspan="{c["rowspan"]}"'
             if c["colspan"] > 1: a += f' colspan="{c["colspan"]}"'
             if i == 0:
-                # merged headers need id/headers; scope alone cannot resolve a span
                 hid = f'{anchor(n["id"])}-h{c["c"]}'
                 hdr_ids.append(hid)
                 out.append(f'<th id="{hid}"{a} scope="col">{E(c["text"])}</th>')
@@ -117,9 +124,14 @@ def links_for(n, vol):
         label = (designator(tn) + " " + (tn.get("heading") or "")).strip() or t
         tv = tn.get("volume", 1)
         href = f"#{anchor(t)}" if tv == vol else f"../v{tv}/index.html#{anchor(t)}"
-        # link text states the destination, not "here" (WCAG 2.4.4)
         out.append(f'<a href="{href}">{E(r["text"].strip())} — {E(label)}</a>')
     return out
+
+def emit_bound_tables(nid, buf):
+    for tid in bound_tables.get(nid, []):
+        rendered = table_html(nodes[tid])
+        if rendered:
+            buf.append(rendered)
 
 def render(nid, buf, vol, lvl=2):
     n = nodes[nid]
@@ -134,7 +146,9 @@ def render(nid, buf, vol, lvl=2):
             head = first
             body = " ".join(x["t"] for x in n["text"][1:]).strip()
     if t == "table":
-        buf.append(table_html(n)); return
+        if nid not in bound_ids:
+            buf.append(table_html(n))
+        return
     if t in HEAD_LEVEL:
         lv = min(6, lvl)
         buf.append(f'<h{lv} id="{anchor(nid)}">'
@@ -155,6 +169,8 @@ def render(nid, buf, vol, lvl=2):
                    f'<span class="d">{E(num)}</span> {E(body)}</p>')
     elif body:
         buf.append(f'<p class="prov">{E(body)}</p>')
+
+    emit_bound_tables(nid, buf)
     nxt = min(6, lvl + 1) if t in HEAD_LEVEL else lvl
     for c in kids.get(nid, []):
         render(c, buf, vol, nxt)
@@ -244,4 +260,4 @@ open(f"{OUTDIR}/index.html", "w", encoding="utf-8").write(f"""<!doctype html>
 <footer><p>{E(COPYRIGHT)}</p><p>{E(LICENCE)}</p></footer>
 </body></html>""")
 size = sum(os.path.getsize(f"{OUTDIR}/{f}") for f in os.listdir(OUTDIR))
-print(f"html files {files+1} | {size/1e6:.1f} MB | {time.time()-t0:.0f}s -> {OUTDIR}")
+print(f"html files {files+1} | bound tables {len(bound_ids)} | {size/1e6:.1f} MB | {time.time()-t0:.0f}s -> {OUTDIR}")

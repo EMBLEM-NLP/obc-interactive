@@ -14,14 +14,6 @@ that changed it. This walks all of those edges and emits one citation-grounded
 Markdown block, budgeted to fit a context window.
 
 Reads emitters/obc.sqlite. No network, no embeddings, no external services.
-
-Usage:
-    python3 obc_context.py 9.32.3.8                    # by designator
-    python3 obc_context.py B/9/9.32.3.8 --hops 2       # by node id, 2 hops
-    python3 obc_context.py "protection against depressurization"   # by search
-    python3 obc_context.py 9.32.3.8 --json             # machine-readable
-    python3 obc_context.py --search "secondary suite" --limit 10
-    python3 obc_context.py --modality-report
 """
 
 import argparse
@@ -33,13 +25,17 @@ import sys
 import urllib.parse
 from collections import OrderedDict
 
+from text_projection import (
+    FLAT_BODY_CHARS,
+    bound_table_ids,
+    owns_table as projection_owns_table,
+)
+
 DB = "obc.sqlite"
 
-# Text-carrying leaf types, in the order they should be rendered.
 LEAF = ("sentence", "clause", "subclause",
         "act_subsection", "act_clause", "act_subclause")
 
-# Edge kinds worth expanding, mapped to how they should be labelled.
 REF_LABEL = OrderedDict([
     ("code_ref", "cites"),
     ("note",     "explanatory note"),
@@ -49,15 +45,8 @@ REF_LABEL = OrderedDict([
     ("supp",     "supplementary standard"),
 ])
 
-# Above this many dependencies an article is a hub: no context window holds
-# its expansion, and trying produces a bundle that is both huge and wrong.
-# B/1/1.3.1.2 (Applicable Editions) has 677; B/11/11.5.1.1 (Compliance
-# Alternatives) has 382. The median article has 3 and the 95th percentile 11,
-# so this threshold does not touch ordinary provisions. Hubs are delivered
-# by reference: the table, a count, and a pointer.
 HUB_DEPS = 50
 
-# Deontic modality. Order matters: "shall not" must beat "shall".
 MODALITY = [
     ("prohibition", re.compile(r"\bshall not\b|\bshall in no case\b|\bis not permitted\b", re.I)),
     ("obligation",  re.compile(r"\bshall\b|\bmust\b|\bis required to\b|\bshall be\b", re.I)),
@@ -74,20 +63,7 @@ def modality_of(text):
 
 
 def connect(path=DB, readonly=True):
-    """Open the graph. READ-ONLY by default.
-
-    sqlite3.connect() CREATES an empty database when the file is absent, so a
-    reader pointed at missing data silently produced a 0-byte sqlite and the
-    next query failed with `no such table: node` - a schema error standing in
-    for a missing-file error, which is the silent-wrong-data failure this
-    project exists to catch. Observed 2026-09-08: the Stop hook ran check35 on
-    a clone that had never fetched the data and reported "a ratio gate has no
-    falsifying mutation" when no ratio gate was broken at all.
-
-    Every caller in this repository reads. Writers - stage18, stage19,
-    stage20, check38's seeder, check35's mutations - open their own
-    connections and are unaffected. Pass readonly=False if that ever changes.
-    """
+    """Open the graph. READ-ONLY by default."""
     if not readonly:
         c = sqlite3.connect(path)
         c.row_factory = sqlite3.Row
@@ -95,8 +71,7 @@ def connect(path=DB, readonly=True):
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"{path} does not exist. The derived data is not kept in git; "
-            f"run: bash ci/fetch_data.sh   "
-            f"(needs OBC_DATA_URL, OBC_DATA_TARBALL or OBC_DATA_DIR)")
+            f"run: bash ci/fetch_data.sh")
     c = sqlite3.connect(f"file:{urllib.parse.quote(path)}?mode=ro", uri=True)
     c.row_factory = sqlite3.Row
     return c
@@ -107,11 +82,7 @@ def connect(path=DB, readonly=True):
 # --------------------------------------------------------------------------
 
 def resolve(c, anchor, limit=8):
-    """Accept a node id, a designator like '9.32.3.8', or free text.
-
-    Returns a list of candidate rows, best first. Exact id and exact
-    designator short-circuit; anything else goes to FTS then trigram.
-    """
+    """Accept a node id, a designator like '9.32.3.8', or free text."""
     r = c.execute("SELECT * FROM node WHERE id = ?", (anchor,)).fetchone()
     if r:
         return [r]
@@ -123,13 +94,6 @@ def resolve(c, anchor, limit=8):
     if rows:
         return rows
 
-    # FTS5 with porter stemming. Quote the query so punctuation in a
-    # citation-like string cannot be parsed as FTS syntax.
-    #
-    # Index and TOC nodes repeat provision wording verbatim, so raw bm25 ranks
-    # them above the provision itself. They are navigational, not normative:
-    # demote them rather than excluding them, since an index hit is still a
-    # legitimate way to find a topic.
     q = '"' + anchor.replace('"', '""') + '"'
     try:
         rows = c.execute(
@@ -146,34 +110,18 @@ def resolve(c, anchor, limit=8):
     if rows:
         return rows
 
-    # Trigram fallback catches substrings and partial citations that the
-    # porter tokenizer misses.
-    rows = c.execute(
+    return c.execute(
         """SELECT n.* FROM node_tri t JOIN node n ON n.id = t.id
            WHERE node_tri MATCH ? LIMIT ?""",
         (anchor, limit),
     ).fetchall()
-    return rows
 
 
-# An article that owns a table repeats the whole table as run-on text in its
-# own `body`, alongside the structured grid in `cell`. B/11/11.5.1.1 carries
-# 126,177 characters this way and B/1/1.3.1.2 carries 56,202. Across the
-# corpus, 179 of 1,640 body-bearing articles do this, and their mean body is
-# 1,693 characters against 91 for articles without a table - an 18x gap that
-# is entirely duplicated grid.
-#
-# Carrying it is wrong twice over: the bundle pays for the same data in an
-# unreadable form, and the readable form is right underneath. Suppress the
-# tail and render the grid.
-FLAT_BODY_CHARS = 600
-
-
+# Compatibility public surface. The implementation now lives in
+# text_projection.py and is shared with stage19_embed.py, so the assembler and
+# embedder cannot silently drift on what counts as an owned table.
 def owns_table(c, node_id):
-    return c.execute(
-        """SELECT 1 FROM node t WHERE t.type IN ('table','figure')
-           AND t.id IN (SELECT descendant FROM closure WHERE ancestor=?)
-           AND t.id != ? LIMIT 1""", (node_id, node_id)).fetchone() is not None
+    return projection_owns_table(c, node_id)
 
 
 def subtree_text(c, node_id):
@@ -216,7 +164,6 @@ def ancestors(c, node_id):
 
 
 def scope_ids(c, node_id):
-    """The node plus every descendant - the id set whose edges we follow."""
     return [r[0] for r in c.execute(
         "SELECT descendant FROM closure WHERE ancestor = ?", (node_id,))]
 
@@ -226,7 +173,6 @@ def scope_ids(c, node_id):
 # --------------------------------------------------------------------------
 
 def dep_count(c, ids):
-    """How many distinct things this scope depends on."""
     ph = ",".join("?" * len(ids))
     r = c.execute(
         f"""SELECT COUNT(*) FROM (
@@ -237,7 +183,6 @@ def dep_count(c, ids):
 
 
 def outbound(c, ids):
-    """Outbound ref edges from a set of nodes, deduped by destination."""
     ph = ",".join("?" * len(ids))
     rows = c.execute(
         f"""SELECT DISTINCT src, dst, kind, text, reason FROM ref
@@ -258,12 +203,6 @@ def has_table(c, name):
 
 
 def defined_terms(c, ids):
-    """Prefer term_resolved (one node per definition) when stage18 has run.
-
-    Falling back to `term` is correct but nearly useless for retrieval: its
-    targets are the whole definition clauses, so a single term drags in
-    hundreds of unrelated definitions and truncation silently substitutes
-    the wrong one."""
     ph = ",".join("?" * len(ids))
     if has_table(c, "term_resolved"):
         return c.execute(
@@ -275,30 +214,25 @@ def defined_terms(c, ids):
 
 
 def inbound_tables(c, ids):
-    """Tables and figures bound to these nodes.
+    """Tables/figures bound to these provisions.
 
-    Two bindings exist and both must be followed. Forty tables carry an
-    explicit ref edge; the other 259 record their "Forming Part of
-    Sentences ..." caption as the parent relation instead, so they are
-    descendants of the provision rather than citers of it. Following only
-    the ref edge silently drops 87% of the tables - and the table is
-    usually the entire substance of the requirement, so the bundle would
-    look complete while omitting the numbers."""
+    The current model uses the explicit `forms_part_of` edge. Tree-parent lookup
+    remains only as a compatibility fallback for pre-R4 release snapshots.
+    """
     ph = ",".join("?" * len(ids))
     via_ref = c.execute(
         f"""SELECT DISTINCT r.src AS id, n.type, n.designator, n.heading
             FROM ref r JOIN node n ON n.id = r.src
-            WHERE r.dst IN ({ph}) AND n.type IN ('table','figure')""", ids).fetchall()
-    via_tree = c.execute(
+            WHERE r.kind='forms_part_of' AND r.dst IN ({ph})
+              AND n.type IN ('table','figure')
+            ORDER BY n.rowid""", ids).fetchall()
+    if via_ref:
+        return via_ref
+    return c.execute(
         f"""SELECT DISTINCT n.id, n.type, n.designator, n.heading
-            FROM node n WHERE n.parent IN ({ph}) AND n.type IN ('table','figure')""",
+            FROM node n WHERE n.parent IN ({ph}) AND n.type IN ('table','figure')
+            ORDER BY n.rowid""",
         ids).fetchall()
-    out, seen = [], set()
-    for r in list(via_ref) + list(via_tree):
-        if r["id"] not in seen:
-            seen.add(r["id"])
-            out.append(r)
-    return out
 
 
 def citing_in(c, ids):
@@ -352,9 +286,8 @@ def build_bundle(c, node_id, hops=1, max_rows=25, budget=None):
         raise SystemExit(f"no such node: {node_id}")
 
     ids = scope_ids(c, node_id)
-    own_tables = [r["id"] for r in c.execute(
-        "SELECT id FROM node WHERE type IN ('table','figure') AND id IN (%s)"
-        % ",".join("?" * len(ids)), ids)]
+    own_rows = inbound_tables(c, ids)
+    own_tables = [r["id"] for r in own_rows]
     b = {
         "anchor": dict(id=root["id"], designator=root["designator"],
                        heading=root["heading"], type=root["type"],
@@ -371,21 +304,12 @@ def build_bundle(c, node_id, hops=1, max_rows=25, budget=None):
     b["dep_count"] = dep_count(c, ids)
     b["hub"] = b["dep_count"] > HUB_DEPS
 
-    # A table belonging to the anchor itself is a descendant, so it lands in
-    # `seen` immediately and every later path skips it - while subtree_text
-    # renders nothing for it, because a table's text lives in `cell`, not in
-    # `body`. The result is the worst possible failure: the table that IS the
-    # requirement disappears and the bundle still looks complete. Emit these
-    # first, explicitly.
-    # A hub's own tables are the substance; cap rows hard rather than drop
-    # them. Even so a hub bundle may exceed a nominal budget, because its
-    # provision text alone can, and provision text is never trimmed. The
-    # caller is told the size rather than handed a silently truncated bundle.
     rows_cap = min(max_rows, 10) if b["hub"] else max_rows
     for tid in own_tables:
         d = c.execute("SELECT * FROM node WHERE id = ?", (tid,)).fetchone()
         if d is None:
             continue
+        seen.add(tid)
         md, total = render_table(c, tid, rows_cap)
         b["tables"].append(dict(id=tid, designator=d["designator"],
                                 heading=d["heading"], type=d["type"],
@@ -400,9 +324,6 @@ def build_bundle(c, node_id, hops=1, max_rows=25, budget=None):
         b["terms"].append(dict(term=t["term"], id=t["dst"],
                                designator=d["designator"], text=txt.strip()))
 
-    # A hub expands to more than any window holds, so expansion is skipped
-    # entirely rather than truncated at an arbitrary point. Truncation is the
-    # worse failure: it looks complete and silently picks 8 of 677.
     frontier, depth = ([], hops) if b["hub"] else (list(ids), 0)
     while frontier and depth < hops:
         nxt = []
@@ -429,6 +350,8 @@ def build_bundle(c, node_id, hops=1, max_rows=25, budget=None):
                 nxt.append(e["dst"])
         frontier, depth = nxt, depth + 1
 
+    # Compatibility path for a table that was not already picked up as an own
+    # table (e.g. a legacy corpus or a broader descendant scope).
     for t in inbound_tables(c, ids):
         if t["id"] in seen:
             continue
@@ -456,15 +379,6 @@ def build_bundle(c, node_id, hops=1, max_rows=25, budget=None):
 
 
 def trim(b, budget):
-    """Drop the least-load-bearing sections first until the rendered bundle
-    fits. Provision text and defined terms are never dropped - without them
-    the bundle is wrong, not merely short.
-
-    The anchor's own table is also never dropped. Trimming it is how a hub
-    bundle ends up promising "its own tables are included in full" while
-    delivering nothing: the table is the largest object in the bundle, so a
-    size-ordered trim removes it first, which is exactly backwards - it is
-    the substance of the requirement."""
     order = ["cited_by", "standards", "tables", "cites", "notes"]
     guard = 0
     while len(render(b)) // 4 > budget and guard < 5000:
@@ -481,7 +395,6 @@ def trim(b, budget):
                 b[k].pop()
                 break
         else:
-            # nothing droppable left; shrink the protected table instead
             for t in b["tables"]:
                 if t.get("own") and t.get("rows", 0) > 15 and t.get("grid"):
                     lines = t["grid"].split("\n")
@@ -585,10 +498,6 @@ def render(b):
              "© King's Printer for Ontario, 2024. Reproduced with permission.")
     return "\n".join(L)
 
-
-# --------------------------------------------------------------------------
-# reports
-# --------------------------------------------------------------------------
 
 def modality_report(c):
     rows = c.execute(

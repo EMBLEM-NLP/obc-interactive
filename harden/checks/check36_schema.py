@@ -4,12 +4,11 @@
 Modes:
   --schema-only   validate the schema's own closed-world invariants.
   --db PATH       ensure every emitted node type and edge kind is declared.
-  --strict        additionally report current model-shape defects owned by Track B.
+  --strict        additionally report model-shape defects.
   --json          emit a machine-readable summary line prefixed with ``JSON ``.
 
-A negative control is available with ``NEGATIVE=1``. It deliberately removes a
-reverse label from one EdgeKind and passes only when the schema validator detects
-the mutation. This mode requires no corpus data and can run in data-less clones.
+`NEGATIVE=1` removes a reverse label from one EdgeKind and passes only when the
+schema validator detects that mutation. This path needs no corpus data.
 """
 
 import argparse
@@ -61,8 +60,15 @@ def declared_types_of_class(cls):
     }
 
 
+def binding_target_types(schema):
+    slot = schema["slots"].get("forms_part_of", {})
+    raw = (slot.get("annotations") or {}).get("allowed_node_types", "")
+    if isinstance(raw, dict):
+        raw = raw.get("value", "")
+    return tuple(x.strip() for x in str(raw).split(",") if x.strip())
+
+
 def check_schema(schema):
-    """Return schema-invariant failures. An empty list means S0-b passes."""
     failures = []
     types = node_types(schema)
     kinds = edge_kinds(schema)
@@ -74,7 +80,6 @@ def check_schema(schema):
                 f"NodeType '{node_type}' has no valid role annotation (got {role!r})"
             )
 
-    # Every relation kind must have a declared backward traversal.
     for kind, value in kinds.items():
         reverse = (value.get("annotations") or {}).get("reverse")
         if not reverse:
@@ -82,8 +87,6 @@ def check_schema(schema):
                 f"EdgeKind '{kind}' declares no reverse label; relation is not bidirectionally traversable"
             )
 
-    # Closed classes prevent an undeclared relation from silently appearing as
-    # an ad-hoc class attribute or second edge carrier.
     for name, cls in schema["classes"].items():
         if (cls.get("annotations") or {}).get("closed") != "true":
             failures.append(f"class {name} is not annotated closed: true")
@@ -93,8 +96,7 @@ def check_schema(schema):
         for name, cls in schema["classes"].items()
         if cls.get("is_a") == "Node"
     }
-    covered = set()
-    overlap = set()
+    covered, overlap = set(), set()
     for cls in concrete.values():
         declared = declared_types_of_class(cls)
         overlap |= covered & declared
@@ -115,43 +117,51 @@ def check_schema(schema):
             f"classes constrain types absent from NodeType: {sorted(extra)}"
         )
 
-    # Defect 1: physical containment and 'forms part of' are separate concepts.
+    # Defect 1: containment and caption binding must be different relations.
     table_cls = schema["classes"].get("Table", {})
     if (table_cls.get("slot_usage") or {}).get("parent", {}).get("range") != "StructuralContainer":
         failures.append(
-            "Table.parent is not narrowed to StructuralContainer; table binding can be overloaded into containment"
+            "Table.parent is not narrowed to StructuralContainer; binding can be overloaded into containment"
         )
-    if schema["slots"].get("forms_part_of", {}).get("range") != "Provision":
-        failures.append("forms_part_of does not range over Provision")
+    binding_slot = schema["slots"].get("forms_part_of", {})
+    if binding_slot.get("range") != "Node":
+        failures.append("forms_part_of must range over Node; captions may bind above leaf Provision level")
+    allowed = binding_target_types(schema)
+    if not allowed:
+        failures.append("forms_part_of declares no allowed_node_types")
+    undeclared_allowed = set(allowed) - set(types)
+    if undeclared_allowed:
+        failures.append(
+            f"forms_part_of allows undeclared node types: {sorted(undeclared_allowed)}"
+        )
     holders = [
-        name
-        for name, cls in schema["classes"].items()
+        name for name, cls in schema["classes"].items()
         if "forms_part_of" in (cls.get("slots") or [])
     ]
     if holders != ["Table"]:
-        failures.append(
-            f"forms_part_of is held by {holders}, must be Table alone"
-        )
+        failures.append(f"forms_part_of is held by {holders}, must be Table alone")
+    if "forms_part_of" not in kinds:
+        failures.append("'forms_part_of' is not an EdgeKind")
+
+    # Structural containers and text-bearing leaves remain disjoint even though
+    # forms_part_of is allowed to target selected members of both groups.
     if (
         set(declared_types_of_class(schema["classes"]["StructuralContainer"]))
         & set(declared_types_of_class(schema["classes"]["Provision"]))
     ):
         failures.append("StructuralContainer and Provision overlap")
 
-    # Defect 2: citations and defined-term usages share one edge carrier.
+    # Defect 2: semantic relations share the Edge carrier.
     carriers = [
-        name
-        for name, cls in schema["classes"].items()
+        name for name, cls in schema["classes"].items()
         if "kind" in (cls.get("slots") or [])
     ]
     if carriers != ["Edge"]:
-        failures.append(
-            f"edge kinds are carried by {carriers}, must be Edge alone"
-        )
+        failures.append(f"edge kinds are carried by {carriers}, must be Edge alone")
     if "term" not in kinds:
         failures.append("'term' is not an EdgeKind")
     if not schema["classes"]["Edge"].get("unique_keys"):
-        failures.append("Edge has no unique key; duplicate resolved/unresolved copies are representable")
+        failures.append("Edge has no unique key; duplicate copies are representable")
     for name, cls in schema["classes"].items():
         for slot in (cls.get("slots") or []) + list((cls.get("attributes") or {})):
             if slot in ("terms", "term_resolved", "refs"):
@@ -159,12 +169,11 @@ def check_schema(schema):
                     f"class {name} has slot '{slot}'; a second relation carrier is declared"
                 )
 
-    # Defect 3: Node itself carries only containment; all other relationships
-    # must travel through Edge and therefore have a reverse index through dst.
+    # Defect 3: Node itself carries only containment; all other node-to-node
+    # relationships travel through Edge.
     node_slots = schema["classes"]["Node"]["slots"]
     node_relations = [
-        slot
-        for slot in node_slots
+        slot for slot in node_slots
         if schema["slots"].get(slot, {}).get("range") == "Node"
     ]
     if sorted(node_relations) != ["children", "parent"]:
@@ -180,7 +189,6 @@ def check_schema(schema):
 
 
 def measure(db_path, schema):
-    """Measure closed-enum coverage against the emitted SQLite corpus."""
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     declared_types = set(node_types(schema))
     declared_kinds = set(edge_kinds(schema))
@@ -218,37 +226,51 @@ def measure(db_path, schema):
 
 
 def conformance(db_path, schema):
-    """Report the known source-model defects that Track B must eliminate."""
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    provision_types = tuple(
-        node_type for node_type, role in roles(schema).items() if role == PROVISION
-    )
+    allowed = binding_target_types(schema)
     out = []
 
-    placeholders = ",".join("?" * len(provision_types))
+    # A table physically nested under a level that can also be a semantic
+    # binding target is the legacy overloaded representation. R4 stage5 puts V1
+    # tables under their Part instead.
+    placeholders = ",".join("?" * len(allowed))
     count = conn.execute(
         f"""SELECT COUNT(*) FROM node t JOIN node p ON p.id=t.parent
             WHERE t.type='table' AND p.type IN ({placeholders})""",
-        provision_types,
+        allowed,
     ).fetchone()[0]
     out.append((
-        "D1 table.parent is a provision",
+        "D1 table.parent carries semantic binding",
         count,
-        "stage5 currently overloads parent with the caption binding",
+        "table.parent must be structural containment only",
     ))
 
-    has_binding = bool(
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='table_binding'"
-        ).fetchone()
-    )
-    node_columns = {row[1] for row in conn.execute("PRAGMA table_info(node)")}
+    binding_count = conn.execute(
+        "SELECT COUNT(*) FROM ref WHERE kind='forms_part_of' AND dst IS NOT NULL"
+    ).fetchone()[0]
     out.append((
         "D1 forms_part_of not emitted",
-        0 if (has_binding or "forms_part_of" in node_columns) else 1,
-        "the canonical binding is not emitted as its own relation",
+        0 if binding_count else 1,
+        "canonical table binding must be emitted as ref.kind=forms_part_of",
     ))
 
+    invalid_binding = conn.execute(
+        f"""SELECT COUNT(*)
+            FROM ref r
+            LEFT JOIN node s ON s.id=r.src
+            LEFT JOIN node d ON d.id=r.dst
+            WHERE r.kind='forms_part_of'
+              AND (s.type IS NOT 'table' OR d.type NOT IN ({placeholders}))""",
+        allowed,
+    ).fetchone()[0]
+    out.append((
+        "D1 invalid forms_part_of endpoint",
+        invalid_binding,
+        f"forms_part_of target type must be one of {allowed}",
+    ))
+
+    # Transitional storage for term relations remains visible here. Track B may
+    # leave this as an explicitly deferred defect, but it cannot be hidden.
     carriers = [
         row[0]
         for row in conn.execute(
@@ -301,8 +323,6 @@ def main():
     failures = check_schema(schema)
 
     if os.environ.get("NEGATIVE") == "1":
-        # S0 control: mutate the mechanism, not the validator. Removing one
-        # reverse declaration must make the schema validator go red.
         key = sorted(edge_kinds(schema))[0]
         edge_kinds(schema)[key].get("annotations", {}).pop("reverse", None)
         after = check_schema(schema)
@@ -341,9 +361,9 @@ def main():
         })
 
         print(f"\nnodes                 : {measured['nodes']}")
-        print(f"edges (ref + term)    : {measured['edges']}")
-        print(f"declared_type_share   : {measured['declared_type_share']:.6f}")
-        print(f"declared_kind_share   : {measured['declared_kind_share']:.6f}")
+        print(f"edges (ref + term)     : {measured['edges']}")
+        print(f"declared_type_share    : {measured['declared_type_share']:.6f}")
+        print(f"declared_kind_share    : {measured['declared_kind_share']:.6f}")
 
         for node_type, count in sorted(measured["undeclared_types"].items()):
             failures.append(f"undeclared node type {node_type!r} on {count} nodes")
@@ -353,7 +373,7 @@ def main():
             print(f"   UNDECLARED KIND  {kind!r}  {count} edges")
 
         if args.strict:
-            print("\nconformance to declared shape (Track B owns current defects):")
+            print("\nconformance to declared shape:")
             for name, count, why in conformance(args.db, schema):
                 print(f"   {'FAIL' if count else 'ok  '}  {name:<44} {count}")
                 if count:

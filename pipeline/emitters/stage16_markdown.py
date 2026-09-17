@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Emitter 2 - Markdown, one file per Part, doubling as the RAG source.
 
-Two decisions taken from the research:
-  * literal designators are written as TEXT, never as Markdown list numbering,
-    because auto-numbering silently renumbers provisions across renderers
-  * complex tables drop to an HTML block; GFM pipe tables cannot express
-    rowspan/colspan, block content in a cell, or a table spanning pages
+Structural containment and table binding are separate. Tables remain physical
+children of the Part in the canonical tree; a table with ``forms_part_of`` is
+rendered immediately after its bound provision and skipped at its structural
+Part position. Unbound tables still render at their physical location.
 """
 import os, sys, json, re, time, html
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -19,6 +18,19 @@ t0 = time.time()
 nodes, order, meta = load_graph()
 kids = {nid: nodes[nid]["children"] for nid in order}
 
+# Semantic table placement. Canonical containment stays physical; this lookup is
+# purely an emitter projection from the explicit forms_part_of relation.
+bound_tables = {}
+for tid in order:
+    t = nodes[tid]
+    if t.get("type") != "table" or not t.get("forms_part_of"):
+        continue
+    targets = t["forms_part_of"] if isinstance(t["forms_part_of"], list) else [t["forms_part_of"]]
+    for target in targets:
+        if target in nodes:
+            bound_tables.setdefault(target, []).append(tid)
+bound_ids = {tid for tids in bound_tables.values() for tid in tids}
+
 HEAD_LEVEL = {"division": 1, "part": 1, "appendix": 1,
               "supplementary_standard": 1, "act": 1,
               "section": 2, "subsection": 3, "article": 4,
@@ -28,11 +40,8 @@ MARKER = {"sentence", "clause", "subclause",
 INDENT = {"sentence": 0, "act_subsection": 0,
           "clause": 1, "act_clause": 1, "subclause": 2, "act_subclause": 2}
 
-def esc(s):
-    return re.sub(r"([\\`*_{}\[\]()#+\-.!])", r"\\\1", s) if False else s
 
 def ref_links(n):
-    """render the node's outbound citations as a compact link line"""
     seen, out = set(), []
     for r in n.get("refs", []):
         t = r.get("target")
@@ -45,6 +54,7 @@ def ref_links(n):
         out.append(f"[{r['text'].strip()}](#{anchor(t)})" if tv == nv
                    else f"[{r['text'].strip()}]({target})")
     return out
+
 
 def table_html(n):
     grid = n.get("grid") or []
@@ -75,7 +85,15 @@ def table_html(n):
     out.append("</table>")
     return "\n".join(out)
 
-SKIP = {"contents"}          # navigation, not content: the file has its own headings
+
+def emit_bound_tables(nid, buf):
+    for tid in bound_tables.get(nid, []):
+        buf.append("")
+        buf.append(table_html(nodes[tid]))
+        buf.append("")
+
+
+SKIP = {"contents"}
 
 def render(nid, buf, depth=0):
     n = nodes[nid]
@@ -84,17 +102,18 @@ def render(nid, buf, depth=0):
         return
     head = (n.get("heading") or "").strip()
     body = node_text(n)
-    # stage 3 sometimes leaves a heading on its own text line; promote it so the
-    # Markdown heading is not "9.1.1." with the title orphaned underneath
     if not head and t in HEAD_LEVEL and n.get("text"):
         first = n["text"][0]["t"].strip()
         if 0 < len(first) <= 80 and not re.match(r"^\(", first) and first[-1] not in ".;:":
             head = first
             body = " ".join(x["t"] for x in n["text"][1:]).strip()
     if t == "table":
-        buf.append("")
-        buf.append(table_html(n))
-        buf.append("")
+        # Bound tables are rendered at their semantic target, not again as a
+        # physical child of the Part. Unbound tables retain structural output.
+        if nid not in bound_ids:
+            buf.append("")
+            buf.append(table_html(n))
+            buf.append("")
         return
     if t in HEAD_LEVEL:
         lvl = min(6, HEAD_LEVEL[t] + 1)
@@ -112,7 +131,6 @@ def render(nid, buf, depth=0):
             buf.append(body)
     elif t in MARKER:
         pad = "    " * INDENT.get(t, 0)
-        # the designator is literal text, not a list marker
         buf.append(f'{pad}{num} {body}'.rstrip())
     elif body:
         buf.append("")
@@ -121,6 +139,10 @@ def render(nid, buf, depth=0):
     if links and t in HEAD_LEVEL:
         buf.append("")
         buf.append("*Refers to:* " + "; ".join(links[:12]))
+
+    # The printed binding is semantic placement. Emit it after the bound
+    # provision's own text/citation line and before descendant provisions.
+    emit_bound_tables(nid, buf)
     for c in kids.get(nid, []):
         render(c, buf, depth + 1)
 
@@ -129,7 +151,7 @@ targets = []
 for r in roots:
     n = nodes[r]
     if n["type"] in ("division",):
-        targets += [c for c in kids[r]]          # one file per Part
+        targets += [c for c in kids[r]]
     else:
         targets.append(r)
 
@@ -169,4 +191,4 @@ for nid in targets:
     files += 1
 
 size = sum(os.path.getsize(f"{OUTDIR}/{f}") for f in os.listdir(OUTDIR))
-print(f"markdown files {files} | {size/1e6:.1f} MB | {time.time()-t0:.0f}s -> {OUTDIR}")
+print(f"markdown files {files} | bound tables {len(bound_ids)} | {size/1e6:.1f} MB | {time.time()-t0:.0f}s -> {OUTDIR}")

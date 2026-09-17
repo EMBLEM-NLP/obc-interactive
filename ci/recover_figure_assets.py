@@ -141,11 +141,22 @@ def recover(pdf_path: Path, metadata_path: Path, out_dir: Path) -> list[dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pdf", required=True)
+    ap.add_argument("--pdf")
     ap.add_argument("--metadata", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--validate-only", action="store_true")
     args = ap.parse_args()
     try:
+        if args.validate_only:
+            failures, checked = validate(Path(args.metadata), Path(args.out))
+            print(f"figure asset references  : {checked}")
+            print(f"invalid assets           : {len(failures)}")
+            for failure in failures[:8]:
+                print(f"  {failure}")
+            print("RESULT:", "PASS" if not failures else f"FAIL {len(failures)}")
+            return 0 if not failures else 1
+        if not args.pdf:
+            raise RuntimeError("--pdf is required unless --validate-only is used")
         items = recover(Path(args.pdf), Path(args.metadata), Path(args.out))
     except Exception as exc:
         print(f"RESULT: FAIL - {exc}")

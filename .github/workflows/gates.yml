@@ -12,6 +12,7 @@ jobs:
       # secrets directly. Prefer the immutable release-manifest contract, while
       # retaining the legacy data URL/tarball modes during migration.
       HAS_DATA: ${{ secrets.OBC_RELEASE_MANIFEST != '' || secrets.OBC_DATA_URL != '' || secrets.OBC_DATA_TARBALL != '' }}
+      HAS_ANTHROPIC: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         # no lfs: true - the repo has no LFS objects by design (.gitattributes)
@@ -83,8 +84,17 @@ jobs:
           name: gate-board
           path: ci/gate-board.json
           if-no-files-found: error
+      - name: note that automated Claude PR summary is unavailable
+        if: github.event_name == 'pull_request' && env.HAS_ANTHROPIC != 'true'
+        run: |
+          echo "::notice title=Claude PR summary skipped::ANTHROPIC_API_KEY is not configured; gate results remain authoritative and the advisory PR summary was skipped."
+          {
+            echo "### Automated PR summary skipped"
+            echo
+            echo "The gate board completed, but ANTHROPIC_API_KEY is not configured, so the optional Claude PR-comment summary was not run."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: summarise the board on the PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.HAS_ANTHROPIC == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

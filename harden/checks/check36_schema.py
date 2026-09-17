@@ -74,7 +74,6 @@ def check_schema(schema):
                 f"NodeType '{node_type}' has no valid role annotation (got {role!r})"
             )
 
-    # Every relation kind must have a declared backward traversal.
     for kind, value in kinds.items():
         reverse = (value.get("annotations") or {}).get("reverse")
         if not reverse:
@@ -82,8 +81,6 @@ def check_schema(schema):
                 f"EdgeKind '{kind}' declares no reverse label; relation is not bidirectionally traversable"
             )
 
-    # Closed classes prevent an undeclared relation from silently appearing as
-    # an ad-hoc class attribute or second edge carrier.
     for name, cls in schema["classes"].items():
         if (cls.get("annotations") or {}).get("closed") != "true":
             failures.append(f"class {name} is not annotated closed: true")
@@ -132,6 +129,8 @@ def check_schema(schema):
         failures.append(
             f"forms_part_of is held by {holders}, must be Table alone"
         )
+    if "forms_part_of" not in kinds:
+        failures.append("'forms_part_of' is not an EdgeKind")
     if (
         set(declared_types_of_class(schema["classes"]["StructuralContainer"]))
         & set(declared_types_of_class(schema["classes"]["Provision"]))
@@ -234,19 +233,31 @@ def conformance(db_path, schema):
     out.append((
         "D1 table.parent is a provision",
         count,
-        "stage5 currently overloads parent with the caption binding",
+        "table.parent must be structural containment only",
     ))
 
-    has_binding = bool(
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='table_binding'"
-        ).fetchone()
-    )
-    node_columns = {row[1] for row in conn.execute("PRAGMA table_info(node)")}
+    binding_count = conn.execute(
+        "SELECT COUNT(*) FROM ref WHERE kind='forms_part_of' AND dst IS NOT NULL"
+    ).fetchone()[0]
     out.append((
         "D1 forms_part_of not emitted",
-        0 if (has_binding or "forms_part_of" in node_columns) else 1,
-        "the canonical binding is not emitted as its own relation",
+        0 if binding_count else 1,
+        "the canonical table binding must be emitted as ref.kind=forms_part_of",
+    ))
+
+    invalid_binding = conn.execute(
+        f"""SELECT COUNT(*)
+            FROM ref r
+            LEFT JOIN node s ON s.id=r.src
+            LEFT JOIN node d ON d.id=r.dst
+            WHERE r.kind='forms_part_of'
+              AND (s.type IS NOT 'table' OR d.type NOT IN ({placeholders}))""",
+        provision_types,
+    ).fetchone()[0]
+    out.append((
+        "D1 invalid forms_part_of endpoint",
+        invalid_binding,
+        "forms_part_of must be table -> provision",
     ))
 
     carriers = [
@@ -301,8 +312,6 @@ def main():
     failures = check_schema(schema)
 
     if os.environ.get("NEGATIVE") == "1":
-        # S0 control: mutate the mechanism, not the validator. Removing one
-        # reverse declaration must make the schema validator go red.
         key = sorted(edge_kinds(schema))[0]
         edge_kinds(schema)[key].get("annotations", {}).pop("reverse", None)
         after = check_schema(schema)

@@ -26,6 +26,10 @@ link() { mkdir -p "$(dirname "$2")"; ln -sf "$1" "$2" 2>/dev/null || cp "$1" "$2
 for f in "$here"/data/v1/*; do link "$f" "$here/volume1/out/$(basename "$f")"; done
 link "$root/pdf/301880_built_from_model.pdf" "$here/volume1/out/301880_built.pdf"
 link "$root/pdf/301881_built_from_model.pdf" "$here/volume1/out/301881_built.pdf"
+python3 "$root/ci/recover_figure_assets.py" \
+  --pdf "$root/pdf/301880_built_from_model.pdf" \
+  --metadata "$here/volume1/out/figures.jsonl.gz" \
+  --out "$here/volume1/out/assets"
 # volume 2 working set
 for f in "$here"/data/v2/*; do link "$f" "$here/volume2/out/$(basename "$f")"; done
 link "$here/data/v2/docgraph-merged.jsonl.gz" "$here/volume2/out/docgraph.jsonl.gz"

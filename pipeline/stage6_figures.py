@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
-"""Stage 6 - figure export and binding.
+"""Stage 6 - image asset export, classification, and figure binding.
 
-Raster figures are pulled by xref at native resolution. Vector figures are
-clipped from the page to SVG (lossless) plus a 300 dpi PNG for preview -
-pdfimages sees none of these, and most of Part 4 is vector.
+Raster candidates are classified into semantic roles before packaging:
+formal figures, front-matter graphics, inline equations, table-cell graphics,
+or micro/non-figure rasterization artifacts. Soft masks are flattened onto a
+white RGB background for portable PNG previews. Vector figures are clipped
+losslessly to SVG plus a 300 dpi PNG preview.
 """
 import pymupdf, gzip, json, os, re, sys, time
+from collections import Counter
+
+from image_assets import (
+    MICRO_ROLE,
+    classify_raster,
+    image_tuple_for_box,
+    normalize_designator,
+    package_ref,
+    role_directory,
+    save_raster_portable,
+)
 
 SRC = sys.argv[1] if len(sys.argv) > 1 else "/mnt/user-data/uploads/301880.pdf"
 OUTDIR = "out/assets"
@@ -20,25 +33,57 @@ for line in gzip.open("out/geometry.jsonl.gz", "rt"):
     r = json.loads(line)
     geo[r["page"]] = r
 
-CAP = re.compile(r"^Figure\s+([A-Z]?-?\d+(?:\.\d+)*\.?(?:-[A-Z0-9/]+)?)\s*(\(Cont)?", re.I)
-FORM = re.compile(r"Forming Part of\s+(?:Sentence|Article|Subsection|Section|Clause)?s?\s*"
-                  r"([0-9]+(?:\.[0-9]+){1,4}[A-Z]?)\.?(?:\((\d+)\))?")
+# Accept both canonical "4.1.7.6.-G" and source typo "4.1.7.6-.G".
+CAP = re.compile(
+    r"^Figure\s+([A-Z]?-?\d+(?:\.\d+)*\.?(?:-\.?[A-Z0-9/]+)?)\s*(\(Cont)?",
+    re.I,
+)
+FORM = re.compile(
+    r"Forming Part of\s+(?:Sentence|Article|Subsection|Section|Clause)?s?\s*"
+    r"([0-9]+(?:\.[0-9]+){1,4}[A-Z]?)\.?(?:\((\d+)\))?"
+)
+
+
+def output_target(role, base, suffix):
+    directory = role_directory(role)
+    if not directory:
+        return None
+    folder = os.path.join(OUTDIR, directory)
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, base + suffix)
+
 
 t0 = time.time()
 assets = []
+asset_bytes = 0
+
 for p in sorted(geo):
     regions = geo[p]["figures"]
     if not regions:
         continue
-    lines = sorted(((l["b"], "".join(s["t"] for s in l["s"]).strip())
-                    for b in inv[p]["blocks"] for l in b["l"]), key=lambda x: x[0][1])
-    caps = [(b[1], CAP.match(t).group(1).rstrip("."), t) for b, t in lines if t and CAP.match(t)]
-    forming = next((FORM.search(t).group(1) for b, t in lines if t and FORM.search(t)), None)
+
+    lines = sorted(
+        (
+            (l["b"], "".join(s["t"] for s in l["s"]).strip())
+            for b in inv[p]["blocks"]
+            for l in b["l"]
+        ),
+        key=lambda x: x[0][1],
+    )
+    caps = []
+    for b, text in lines:
+        match = CAP.match(text) if text else None
+        if match:
+            caps.append((b[1], normalize_designator(match.group(1)), text))
+
+    forming = next(
+        (FORM.search(text).group(1) for b, text in lines if text and FORM.search(text)),
+        None,
+    )
     page = doc[p - 1]
-    xrefs = {tuple(round(v, 1) for v in (im["b"] or [0, 0, 0, 0])): im["xref"]
-             for im in inv[p]["images"] if im["b"]}
+    table_boxes = geo[p].get("tables") or []
+
     for i, box in enumerate(regions):
-        key = tuple(round(v, 1) for v in box)
         des = None
         below = [c for c in caps if c[0] >= box[3] - 4]
         above = [c for c in caps if c[0] < box[1] + 4]
@@ -46,45 +91,97 @@ for p in sorted(geo):
             des = below[0][1]
         elif above:
             des = above[-1][1]
-        base = f"p{p:04d}_{i}_{(des or 'unnamed').replace('/','-')}"
-        stem = f"{OUTDIR}/{base}"
-        kind, files = None, []
-        built_files = []
-        if key in xrefs:
-            kind = "raster"
-            try:
-                pix = pymupdf.Pixmap(doc, xrefs[key])
-                if pix.n - pix.alpha > 3:
-                    pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
-                pix.save(stem + ".png")
-                built_files.append(stem + ".png")
-                files.append(f"{PACKAGE_PREFIX}/{base}.png")
-            except Exception as e:
-                kind = "raster-failed"
+        des = normalize_designator(des)
+
+        image_tuple = image_tuple_for_box(page, box)
+        kind = "raster" if image_tuple else "vector"
+        source_width = int(image_tuple[2]) if image_tuple else None
+        source_height = int(image_tuple[3]) if image_tuple else None
+
+        if kind == "raster":
+            role = classify_raster(
+                page=p,
+                width=source_width,
+                height=source_height,
+                box=box,
+                designator=des,
+                table_boxes=table_boxes,
+            )
         else:
-            kind = "vector"
+            role = "formal_figure" if des else "inline_equation"
+
+        safe_des = (des or "unnamed").replace("/", "-")
+        base = f"p{p:04d}_{i}_{safe_des}"
+        files = []
+        rendering = {"xref": None, "smask": 0, "soft_mask_flattened": False}
+
+        if kind == "raster" and role != MICRO_ROLE:
+            target = output_target(role, base, ".png")
+            try:
+                rendering = save_raster_portable(doc, page, image_tuple, target)
+                files.append(package_ref(role, os.path.basename(target)))
+                asset_bytes += os.path.getsize(target)
+            except Exception as exc:
+                kind = "raster-failed"
+                rendering["error"] = str(exc)
+
+        elif kind == "vector":
+            svg_target = output_target(role, base, ".svg")
+            png_target = output_target(role, base, ".png")
             clip = pymupdf.Rect(*box) + (-3, -3, 3, 3)
-            # SVG has no clip argument, so crop a one-page copy and export that
             tmp = pymupdf.open()
             tmp.insert_pdf(doc, from_page=p - 1, to_page=p - 1)
             tmp[0].set_cropbox(clip)
-            open(stem + ".svg", "w").write(tmp[0].get_svg_image(text_as_path=False))
+            open(svg_target, "w", encoding="utf-8").write(
+                tmp[0].get_svg_image(text_as_path=False)
+            )
             tmp.close()
-            page.get_pixmap(dpi=300, clip=clip).save(stem + ".png")
-            built_files += [stem + ".svg", stem + ".png"]
-            files += [f"{PACKAGE_PREFIX}/{base}.svg", f"{PACKAGE_PREFIX}/{base}.png"]
-        asset_bytes += sum(os.path.getsize(f) for f in built_files if os.path.exists(f))
-        assets.append({"page": p, "region": i, "designator": des, "kind": kind,
-                       "box": box, "forming_part_of": forming, "files": files})
+            page.get_pixmap(dpi=300, clip=clip).save(png_target)
+            files.extend([
+                package_ref(role, os.path.basename(svg_target)),
+                package_ref(role, os.path.basename(png_target)),
+            ])
+            asset_bytes += os.path.getsize(svg_target) + os.path.getsize(png_target)
+
+        assets.append(
+            {
+                "page": p,
+                "region": i,
+                "designator": des,
+                "kind": kind,
+                "asset_role": role,
+                "box": box,
+                "forming_part_of": forming,
+                "source_width": source_width,
+                "source_height": source_height,
+                "xref": rendering.get("xref"),
+                "smask": rendering.get("smask", 0),
+                "soft_mask_flattened": rendering.get("soft_mask_flattened", False),
+                "files": [f for f in files if f],
+            }
+        )
 
 with gzip.open("out/figures.jsonl.gz", "wt", encoding="utf-8") as fh:
-    fh.write(json.dumps({"_meta": True, "assets": len(assets)}) + "\n")
-    for a in assets:
-        fh.write(json.dumps(a) + "\n")
-from collections import Counter
-c = Counter(a["kind"] for a in assets)
+    fh.write(
+        json.dumps(
+            {
+                "_meta": True,
+                "assets": len(assets),
+                "packaged_files": sum(len(a["files"]) for a in assets),
+                "roles": dict(Counter(a["asset_role"] for a in assets)),
+            }
+        )
+        + "\n"
+    )
+    for asset in assets:
+        fh.write(json.dumps(asset) + "\n")
+
+kinds = Counter(a["kind"] for a in assets)
+roles = Counter(a["asset_role"] for a in assets)
 named = sum(1 for a in assets if a["designator"])
-print(f"figure regions exported : {len(assets)}  {dict(c)}")
-print(f"  with a Figure caption : {named}")
-print(f"  bytes on disk         : {asset_bytes/1e6:.1f} MB")
+print(f"image regions classified: {len(assets)}  kinds={dict(kinds)}")
+print(f"  roles                : {dict(roles)}")
+print(f"  captioned figures    : {named}")
+print(f"  packaged files       : {sum(len(a['files']) for a in assets)}")
+print(f"  bytes on disk        : {asset_bytes/1e6:.1f} MB")
 print(f"-> out/figures.jsonl.gz, out/assets/  {time.time()-t0:.0f}s")

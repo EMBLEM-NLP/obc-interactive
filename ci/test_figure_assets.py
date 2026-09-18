@@ -19,6 +19,11 @@ def main():
         if run(meta,assets).returncode==0: failures.append("missing asset stayed green")
         p.write_bytes(b"corrupt")
         if run(meta,assets).returncode==0: failures.append("corrupt asset stayed green")
+        # A packageable record with no files must also turn validation red.
+        rows[1]["files"]=[]
+        with gzip.open(meta,"wt",encoding="utf-8") as fh:
+            for x in rows: fh.write(json.dumps(x)+"\n")
+        if run(meta,assets).returncode==0: failures.append("packageable record without files stayed green")
     print("RESULT:","PASS" if not failures else f"FAIL {len(failures)}")
     [print("  FAIL",x) for x in failures]
     return 0 if not failures else 1

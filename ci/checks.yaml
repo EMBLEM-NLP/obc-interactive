@@ -156,6 +156,13 @@ checks:
     no_data: true
     note: synthetic controls suppress ToC vector false positives while preserving real vector figures
 
+  # ---- raster semantic roles / E6c ----
+  - script: ci/test_image_roles.py
+    scope: .
+    gate: E6C
+    no_data: true
+    note: classifies micro/table/front-matter/equation/formal rasters, normalizes Figure G, tests soft-mask composition, and executes Stage 6 on a synthetic PDF
+
   # ---- enforcement ----
   - {script: ci/test_hooks.sh, scope: ., gate: E1, no_data: true, note: hooks verified as scripts against Claude Code stdin format; fail-closed on garbage}
   - script: harden/checks/check41_machinery.py

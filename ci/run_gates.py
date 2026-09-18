@@ -326,7 +326,7 @@ def main():
         # requiring transient pipeline/out/assets to be stored in git or LFS.
         fig_meta = os.path.join(a.pkg, "model", "figures-v1.jsonl.gz")
         fig_pdf = os.path.join(a.pkg, "pdf", "301880_built_from_model.pdf")
-        fig_out = os.path.join(a.pkg, "assets", "figures-v1")
+        fig_out = os.path.join(a.pkg, "assets")
         if os.path.exists(fig_meta) and os.path.exists(fig_pdf):
             shutil.rmtree(fig_out, ignore_errors=True)
             rr = subprocess.run(
@@ -357,7 +357,7 @@ def main():
     shutil.rmtree(tmp, ignore_errors=True)
     for scope in sorted(pres):
         shutil.rmtree(os.path.join(a.pkg, "verify", scope, "out"), ignore_errors=True)
-    shutil.rmtree(os.path.join(a.pkg, "assets", "figures-v1"), ignore_errors=True)
+    shutil.rmtree(os.path.join(a.pkg, "assets"), ignore_errors=True)
 
     summary = dict(mode="full", data_available=True, ran=ran,
                    passed=sum(1 for b in board if b["status"] == "PASS"),

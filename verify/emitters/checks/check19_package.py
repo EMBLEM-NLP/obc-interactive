@@ -22,7 +22,7 @@ REQUIRED = [
     "obc-interactive/emitters/html.tar.gz",
     "obc-interactive/model/docgraph-merged.jsonl.gz",
     "obc-interactive/model/figures-v1.jsonl.gz",
-    "obc-interactive/assets/figures-v1/MANIFEST.sha256",
+    "obc-interactive/assets/MANIFEST.sha256",
     "obc-interactive/gates/GATES-volume1.md",
     "obc-interactive/gates/GATES-volume2.md",
     "obc-interactive/gates/GATES-emitters.md",
@@ -46,7 +46,7 @@ root = os.path.join(tmp, "obc-interactive")
 fig = subprocess.run(
     [sys.executable, os.path.join(root, "ci", "recover_figure_assets.py"),
      "--metadata", os.path.join(root, "model", "figures-v1.jsonl.gz"),
-     "--out", os.path.join(root, "assets", "figures-v1"),
+     "--out", os.path.join(root, "assets"),
      "--validate-only"],
     capture_output=True, text=True,
 )

@@ -328,36 +328,13 @@ def main():
         fig_pdf = os.path.join(a.pkg, "pdf", "301880_built_from_model.pdf")
         fig_out = os.path.join(a.pkg, "assets")
         if os.path.exists(fig_meta) and os.path.exists(fig_pdf):
-            for d in ("figures-v1", "front-matter-v1", "inline-raster-v1", "table-raster-v1"):\n                shutil.rmtree(os.path.join(fig_out, d), ignore_errors=True)\n            for name in ("MANIFEST.sha256", "manifest.json"):\n                try: os.unlink(os.path.join(fig_out, name))\n                except FileNotFoundError: pass
-            rr = subprocess.run(
-                [sys.executable, os.path.join(a.pkg, "ci", "recover_figure_assets.py"),
-                 "--pdf", fig_pdf, "--metadata", fig_meta, "--out", fig_out],
-                cwd=a.pkg, capture_output=True, text=True,
-            )
-            if rr.returncode != 0:
-                print(rr.stdout)
-                raise RuntimeError("figure asset recovery failed before package build")
-        # The deliverable is named obc-interactive regardless of what the
-        # checkout directory is called; check19 looks for obc-interactive/README.md.
-        # Using the checkout's basename here failed G16d on any clone not literally
-        # named obc-interactive - found on the first git dry run.
-        import zipfile
-        with zipfile.ZipFile(zipp, "w", zipfile.ZIP_DEFLATED) as z:
-            for root, dirs, files in os.walk(a.pkg):
-                dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", "out")]
-                for f in files:
-                    if f in (".regen.stamp", "gate-board.json", "MANIFEST.sha256.tmp"): continue
-                    full = os.path.join(root, f)
-                    z.write(full, os.path.join("obc-interactive", os.path.relpath(full, a.pkg)))
-
-    f, r = execute(checks, a.pkg, base_env, sub, a.timeout, board)
-    fails += f
-    ran += r
-
-    shutil.rmtree(tmp, ignore_errors=True)
-    for scope in sorted(pres):
-        shutil.rmtree(os.path.join(a.pkg, "verify", scope, "out"), ignore_errors=True)
-    for d in ("figures-v1", "front-matter-v1", "inline-raster-v1", "table-raster-v1"):\n        shutil.rmtree(os.path.join(a.pkg, "assets", d), ignore_errors=True)\n    for name in ("MANIFEST.sha256", "manifest.json"):\n        try: os.unlink(os.path.join(a.pkg, "assets", name))\n        except FileNotFoundError: pass
+            for d in ("figures-v1", "front-matter-v1", "inline-raster-v1", "table-raster-v1"):
+        shutil.rmtree(os.path.join(a.pkg, "assets", d), ignore_errors=True)
+    for name in ("MANIFEST.sha256", "manifest.json"):
+        try:
+            os.unlink(os.path.join(a.pkg, "assets", name))
+        except FileNotFoundError:
+            pass
 
     summary = dict(mode="full", data_available=True, ran=ran,
                    passed=sum(1 for b in board if b["status"] == "PASS"),

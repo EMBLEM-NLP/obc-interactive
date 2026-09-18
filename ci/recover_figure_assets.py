@@ -73,8 +73,15 @@ def validate(metadata_path,out_root):
     _,records=load_records(metadata_path); failures=[]; expected=set()
     for rec in records:
         role=rec.get("asset_role")
-        if role==MICRO_ROLE and rec.get("files"): failures.append(f"micro_nonfigure has files page {rec.get('page')}")
-        for ref in rec.get("files") or []:
+        files=rec.get("files") or []
+        if role==MICRO_ROLE and files:
+            failures.append(f"micro_nonfigure has files page {rec.get('page')}")
+        if role!=MICRO_ROLE and not files:
+            failures.append(
+                f"packageable asset has no files page {rec.get('page')} "
+                f"role={role or 'unknown'} designator={rec.get('designator')}"
+            )
+        for ref in files:
             rel=Path(ref).relative_to("assets") if str(ref).startswith("assets/") else Path(role_directory(role) or "figures-v1")/Path(ref).name
             expected.add(rel.as_posix())
     mp=out_root/"MANIFEST.sha256"; hashes={}

@@ -131,7 +131,10 @@ def save_raster_portable(doc, page, image_tuple, target) -> dict:
     base = pymupdf.Pixmap(doc, xref)
     if base.alpha:
         base = pymupdf.Pixmap(base, 0)
-    if base.n - base.alpha < 3:
+    # PNG previews are always RGB. Grayscale and CMYK sources must both be
+    # converted before mask compositing; treating CMYK sample bytes as RGB
+    # silently corrupts colour.
+    if base.colorspace is None or getattr(base.colorspace, "n", 0) != 3:
         base = pymupdf.Pixmap(pymupdf.csRGB, base)
 
     target = str(target)

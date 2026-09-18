@@ -256,10 +256,12 @@ tracks:
       E4: page 728 Volume 1 — 7 orphaned body lines, first real capture residual
       E5: 173 Volume 2 externals; H4 controls for 629 + 363 absence claims
       E6: >-
-        figure fidelity: package every referenced asset; current detector baseline is 55 raster
-        graphics, with contents-page vector false positives suppressed and historical transient
-        file counts (including the old 313 count) treated as non-canonical; 44
-        compliance-alternative rows; 13 notes-to-table
+        image fidelity: classify current raster candidates by semantic role (formal figure,
+        table-cell graphic, front matter, inline equation, micro/non-figure); package every
+        retained reference with checksums; flatten PDF soft masks for portable PNG previews;
+        suppress contents-page vector false positives; treat historical transient file counts
+        (including the old 313 count) as non-canonical; 44 compliance-alternative rows;
+        13 notes-to-table
       E7: check22_docs scope -> reports/*.md; reconcile ROADMAP.md, GATED_STATUS.md
       E8: check8_build needs the v9 baseline PDF — ship it or retire the check
     gates:

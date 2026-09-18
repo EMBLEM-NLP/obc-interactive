@@ -326,9 +326,9 @@ def main():
         # requiring transient pipeline/out/assets to be stored in git or LFS.
         fig_meta = os.path.join(a.pkg, "model", "figures-v1.jsonl.gz")
         fig_pdf = os.path.join(a.pkg, "pdf", "301880_built_from_model.pdf")
-        fig_out = os.path.join(a.pkg, "assets", "figures-v1")
+        fig_out = os.path.join(a.pkg, "assets")
         if os.path.exists(fig_meta) and os.path.exists(fig_pdf):
-            shutil.rmtree(fig_out, ignore_errors=True)
+            for d in ("figures-v1", "front-matter-v1", "inline-raster-v1", "table-raster-v1"):\n                shutil.rmtree(os.path.join(fig_out, d), ignore_errors=True)\n            for name in ("MANIFEST.sha256", "manifest.json"):\n                try: os.unlink(os.path.join(fig_out, name))\n                except FileNotFoundError: pass
             rr = subprocess.run(
                 [sys.executable, os.path.join(a.pkg, "ci", "recover_figure_assets.py"),
                  "--pdf", fig_pdf, "--metadata", fig_meta, "--out", fig_out],
@@ -357,7 +357,7 @@ def main():
     shutil.rmtree(tmp, ignore_errors=True)
     for scope in sorted(pres):
         shutil.rmtree(os.path.join(a.pkg, "verify", scope, "out"), ignore_errors=True)
-    shutil.rmtree(os.path.join(a.pkg, "assets", "figures-v1"), ignore_errors=True)
+    for d in ("figures-v1", "front-matter-v1", "inline-raster-v1", "table-raster-v1"):\n        shutil.rmtree(os.path.join(a.pkg, "assets", d), ignore_errors=True)\n    for name in ("MANIFEST.sha256", "manifest.json"):\n        try: os.unlink(os.path.join(a.pkg, "assets", name))\n        except FileNotFoundError: pass
 
     summary = dict(mode="full", data_available=True, ran=ran,
                    passed=sum(1 for b in board if b["status"] == "PASS"),
